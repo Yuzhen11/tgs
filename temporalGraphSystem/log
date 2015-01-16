@@ -1,0 +1,31 @@
+mpic++ run.cpp -I/usr/local/hadoop/src/c++/libhdfs -I/usr/lib/jvm/java-1.7.0/include -I/usr/lib/jvm/java-1.7.0/include/linux  -I ~/yuzhen/pregelOL-code -L/usr/local/hadoop/c++/Linux-amd64-64/lib -lhdfs -Wno-deprecated -O2  -o run
+run.cpp: In member function ‘virtual temporalVertex* temporalWorker::toVertex(char*)’:
+run.cpp:53:27: error: cannot allocate an object of abstract type ‘temporalVertex’
+   temporalVertex* v = new temporalVertex;
+                           ^
+run.cpp:32:7: note:   because the following virtual functions are pure within ‘temporalVertex’:
+ class temporalVertex : public VertexOL<VertexID, int, vertexValue, int, intpair>{
+       ^
+In file included from /home/yanda/yuzhen/pregelOL-code/ol/pregel-ol-dev.h:5:0,
+                 from run.cpp:1:
+/home/yanda/yuzhen/pregelOL-code/ol/VertexOL.h:54:19: note: 	void VertexOL<KeyT, QValueT, NQValueT, MessageT, QueryT, HashT>::preCompute(VertexOL<KeyT, QValueT, NQValueT, MessageT, QueryT, HashT>::MessageContainer&) [with KeyT = int; QValueT = int; NQValueT = vertexValue; MessageT = int; QueryT = intpair; HashT = DefaultHash<int>; VertexOL<KeyT, QValueT, NQValueT, MessageT, QueryT, HashT>::MessageContainer = std::vector<int>]
+      virtual void preCompute(MessageContainer& messages) = 0;
+                   ^
+In file included from /home/yanda/yuzhen/pregelOL-code/ol/../utils/communication.h:6:0,
+                 from /home/yanda/yuzhen/pregelOL-code/ol/MessageBufferOL.h:8,
+                 from /home/yanda/yuzhen/pregelOL-code/ol/Task.h:6,
+                 from /home/yanda/yuzhen/pregelOL-code/ol/pregel-ol-dev.h:4,
+                 from run.cpp:1:
+/home/yanda/yuzhen/pregelOL-code/ol/../utils/serialization.h: In instantiation of ‘obinstream& operator>>(obinstream&, T*&) [with T = temporalVertex]’:
+/home/yanda/yuzhen/pregelOL-code/ol/../utils/serialization.h:225:11:   required from ‘obinstream& operator>>(obinstream&, std::vector<T>&) [with T = temporalVertex*]’
+/home/yanda/yuzhen/pregelOL-code/ol/../utils/communication.h:124:20:   required from ‘void all_to_all(std::vector<T>&) [with T = std::vector<temporalVertex*, std::allocator<temporalVertex*> >]’
+/home/yanda/yuzhen/pregelOL-code/ol/WorkerOL.h:120:28:   required from ‘void WorkerOL<VertexOLT, AggregatorT, IndexT>::sync_graph() [with VertexOLT = temporalVertex; AggregatorT = DummyAgg; IndexT = char]’
+/home/yanda/yuzhen/pregelOL-code/ol/WorkerOL.h:591:15:   required from ‘void WorkerOL<VertexOLT, AggregatorT, IndexT>::run(const WorkerParams&) [with VertexOLT = temporalVertex; AggregatorT = DummyAgg; IndexT = char]’
+run.cpp:106:21:   required from here
+/home/yanda/yuzhen/pregelOL-code/ol/../utils/serialization.h:214:7: error: cannot allocate an object of abstract type ‘temporalVertex’
+     p = new T;
+       ^
+run.cpp:32:7: note:   since type ‘temporalVertex’ has pure virtual functions
+ class temporalVertex : public VertexOL<VertexID, int, vertexValue, int, intpair>{
+       ^
+make: *** [run] Error 1
