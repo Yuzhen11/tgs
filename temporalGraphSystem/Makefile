@@ -7,7 +7,7 @@ LDFLAGS = -lhdfs -Wno-deprecated -O2
 all: run
 
 run: run.cpp
-	$(CCOMPILE) tgs.cpp $(CPPFLAGS) $(LIB) $(LDFLAGS)  -o run
+	$(CCOMPILE) -std=c++11 tgs.cpp $(CPPFLAGS) $(LIB) $(LDFLAGS)  -o run
 	./kill.py
 	
 clean:

@@ -1,10 +1,10 @@
 #ifndef VERTEXOL_H
 #define VERTEXOL_H
 
-#include "../utils/global.h" //for msg_buf when sending msgs
+#include "utils/global.h" //for msg_buf when sending msgs
 #include "global_ol.h"//for query_info during compute()
 #include <vector>
-#include "../basic/Vertex.h"//for DefaultHash
+#include "basic/Vertex.h"//for DefaultHash
 #include "smpair.h"
 #include "MessageBufferOL.h"
 using namespace std;

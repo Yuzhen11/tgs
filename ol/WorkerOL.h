@@ -2,15 +2,15 @@
 #define WORKEROL_H
 
 #include "global_ol.h"
-#include "../utils/global.h"
+#include "utils/global.h"
 #include "MessageBufferOL.h"
 #include <string>
-#include "../utils/communication.h"
-#include "../utils/ydhdfs.h"
+#include "utils/communication.h"
+#include "utils/ydhdfs.h"
 #include "hdfs.h"
-#include "../utils/Combiner.h"
-#include "../tools/msgtool.h"
-#include "../utils/Aggregator.h"//for DummyAgg
+#include "utils/Combiner.h"
+#include "tools/msgtool.h"
+#include "utils/Aggregator.h"//for DummyAgg
 
 
 #include <unistd.h>
@@ -614,6 +614,8 @@ class WorkerOL {
 			get_vnum() = all_sum(vertexes.size());//vertex addition/deletion not supported right now
 			//=========================================================
 			
+			
+			if (_my_rank==MASTER_RANK) cout << "begin preCompute" << endl;
 			preCompute();
 			
 			init_timers();
@@ -644,29 +646,25 @@ class WorkerOL {
 		{
 			global_step_num = 0;
 			
-			TaskT task;
+			
+			QueryT q;
+			TaskT& task = queries[nxt_qid] = TaskT(q);
+			//set query environment
+			set_qid(nxt_qid);
 			set_query_entry(&task);
+			nxt_qid++;
 			//activate
 			for (int i = 0; i < vertexes.size(); ++ i)
 			{
 				activate(get_vpos(vertexes[i]->id));
 			}
-			
 			while(1)
 			{
-				/*
-				for (int i = 0; i < vertexes.size(); ++ i)
-				{
-					cout << vertexes[i]->id << " ";
-				}
-				cout << endl;
-				sleep(100000);
-				*/
 				task.check_termination();
-				cout << task.superstep << endl;
+				if (_my_rank==MASTER_RANK) cout << task.superstep << endl;
 				if (task.superstep!=-1)
 				{
-					set_query_entry(&task);
+					//set_query_entry(&task);
 					task.start_another_superstep();
 					hash_set<int> active_set;
 					task.move_active_vertices_to(active_set);
@@ -679,7 +677,7 @@ class WorkerOL {
 						if(v->is_active()) task.activate(pos);
 					}
 				}
-				else
+				else//dump
 				{
 					if (_my_rank==MASTER_RANK)
 					{

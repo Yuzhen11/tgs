@@ -2,11 +2,11 @@
 #define MESSAGEBUFFEROL_H
 
 #include <vector>
-#include "../utils/global.h"
+#include "utils/global.h"
 #include "global_ol.h"
-#include "../utils/Combiner.h"
-#include "../utils/communication.h"
-#include "../utils/vecs.h"
+#include "utils/Combiner.h"
+#include "utils/communication.h"
+#include "utils/vecs.h"
 using namespace std;
 
 //================== (de)serializing structure ==================
