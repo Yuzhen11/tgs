@@ -615,8 +615,14 @@ class WorkerOL {
 			//=========================================================
 			
 			
+			int prePhase = 3;
 			if (_my_rank==MASTER_RANK) cout << "begin preCompute" << endl;
-			preCompute();
+			for (int i = 1; i <= prePhase; ++ i)
+			{
+				//if (_my_rank==MASTER_RANK) cout << "phaseNum: " << i << endl;
+				preCompute(i);
+			}
+			sleep(100000);
 			
 			init_timers();
 			while(update_tasks())
@@ -642,17 +648,18 @@ class WorkerOL {
 
 		//================================================
 		
-		void preCompute()
+		void preCompute(int phaseNum)
 		{
-			global_step_num = 0;
+			//global_step_num = 0;
 			
-			
+			int phaseSuperstep = 0;
 			QueryT q;
 			TaskT& task = queries[nxt_qid] = TaskT(q);
 			//set query environment
 			set_qid(nxt_qid);
 			set_query_entry(&task);
 			nxt_qid++;
+			QMapIter qit = queries.begin();
 			//activate
 			for (int i = 0; i < vertexes.size(); ++ i)
 			{
@@ -661,9 +668,10 @@ class WorkerOL {
 			while(1)
 			{
 				task.check_termination();
-				if (_my_rank==MASTER_RANK) cout << task.superstep << endl;
+				//if (_my_rank==MASTER_RANK) cout << "superstep: " << task.superstep << endl;
 				if (task.superstep!=-1)
 				{
+					phaseSuperstep ++;
 					//set_query_entry(&task);
 					task.start_another_superstep();
 					hash_set<int> active_set;
@@ -672,21 +680,32 @@ class WorkerOL {
 					{
 						int pos=*it;
 						VertexOLT* v=vertexes[pos];
-						v->vertex_pre_compute();
+						v->vertex_pre_compute(phaseNum);
 						
-						if(v->is_active()) task.activate(pos);
+						//if(v->is_active()) task.activate(pos);
+					}
+					
+					//all the vertexes should be active in phase1 superstep1
+					if (phaseNum == 1 && task.superstep==1)
+					{
+						for (int i = 0; i < vertexes.size(); ++ i) activate(get_vpos(vertexes[i]->id));
 					}
 				}
 				else//dump
 				{
 					if (_my_rank==MASTER_RANK)
 					{
-						cout << "preCompute done!" << endl;
+						cout << "preCompute phaseNum: " << phaseNum << " done!" << endl;
+						double time = task.get_runtime();
+						cout << "time used: " << time << "seconds" << endl;
+						cout << "total superstep: " << phaseSuperstep << endl;
+						cout << "-------------------------------" << endl;
 					}
 					for (int i = 0; i < vertexes.size(); ++ i)
 					{
 						vertexes[i]->free();
 					}
+					queries.erase(qit++);
 					break;
 				}
 				message_buffer->combine();
@@ -694,7 +713,7 @@ class WorkerOL {
 				//--------------------------------
 				worker_barrier();
 			}
-			sleep(10000000);
+			//sleep(10000000);
 		}
 		
 		

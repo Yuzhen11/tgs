@@ -51,7 +51,7 @@ class VertexOL {
 		
 		//
 		//
-	    virtual void preCompute(MessageContainer& messages) = 0;
+	    virtual void preCompute(MessageContainer& messages, int phaseNum) = 0;
 	    
 		//========================================
 		static void forceTerminate()
@@ -162,10 +162,10 @@ class VertexOL {
 			
 		}
 		
-		void vertex_pre_compute()
+		void vertex_pre_compute(int phaseNum)
 		{
 			MessageContainer& inbuf = mbuf();
-			preCompute(inbuf);
+			preCompute(inbuf, phaseNum);
 			inbuf.clear();//empty the in-buf
 			
 		}
