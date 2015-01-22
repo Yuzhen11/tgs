@@ -668,7 +668,7 @@ class WorkerOL {
 			while(1)
 			{
 				task.check_termination();
-				//if (_my_rank==MASTER_RANK) cout << "superstep: " << task.superstep << endl;
+				if (_my_rank==MASTER_RANK) cout << "superstep: " << task.superstep << endl;
 				if (task.superstep!=-1)
 				{
 					phaseSuperstep ++;
@@ -697,7 +697,7 @@ class WorkerOL {
 					{
 						cout << "preCompute phaseNum: " << phaseNum << " done!" << endl;
 						double time = task.get_runtime();
-						cout << "time used: " << time << "seconds" << endl;
+						cout << "time used: " << time << " seconds" << endl;
 						cout << "total superstep: " << phaseSuperstep << endl;
 						cout << "-------------------------------" << endl;
 					}
