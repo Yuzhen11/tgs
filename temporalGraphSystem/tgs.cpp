@@ -40,6 +40,12 @@ struct vw
 	int v, w;
 };
 
+bool cmp2(const pair<int,int>& p1, const pair<int,int>& p2)
+{
+	if (p1.first == p2.first) return p1.second > p2.second;
+	return p1.first < p2.first;
+}
+
 //idType, qvalueType, nqvalueType, messageType, queryType
 class temporalVertex : public VertexOL<VertexID, int, vertexValue, vector<int>, vector<int> >{
 public:
@@ -64,6 +70,24 @@ public:
 	vector<int> inDegreeOut;
 	vector<int> countinDegreeIn;
 	vector<int> countinDegreeOut;
+	
+	//topChain
+	int labelSize;
+	vector<vector<pair<int,int> > > LinIn;
+	vector<vector<pair<int,int> > > LinOut;
+	vector<vector<pair<int,int> > > LoutIn;
+	vector<vector<pair<int,int> > > LoutOut;
+	
+	vector<vector<pair<int,int> > > LtinIn;
+	vector<vector<pair<int,int> > > LtinOut;
+	vector<vector<pair<int,int> > > LtoutIn;
+	vector<vector<pair<int,int> > > LtoutOut;
+	
+	vector<vector<pair<int,int> > > LcinIn;
+	vector<vector<pair<int,int> > > LcinOut;
+	vector<vector<pair<int,int> > > LcoutIn;
+	vector<vector<pair<int,int> > > LcoutOut;
+	
 
 	//Step 5.1: define UDF1: query -> vertex's query-specific init state
     virtual int init_value(vector<int>& query) //QValueT init_value(QueryT& query
@@ -83,7 +107,60 @@ public:
     
     
     
-    
+    void mergeOut(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, k)
+    {
+    	//merge v1, v2, store in tmp, merge tmp, final store in final, keep change in store
+    	vector<pair<int,int> > tmp;
+    	int p1,p2;
+    	p1 = p2 = 0;
+    	while(p1 < v1.size() || p2 < v2.size())
+    	{
+    		if (p1 == v1.size() || v2[p2].first < v1[p1].first) {tmp.push_back(v2[p2]); p2++; }
+    		else if (p2 == v2.size() || v1[p1].first < v2[p2].first) {tmp.push_back(v1[p1]); p1++; }
+    		else {tmp.push_back(min(v1[p1],v2[p2])); p1++; p2++; }
+    		
+    		if (tmp.size() == k) break;
+    	}
+    	
+    	p1 = p2 = 0;
+    	vector<pair<int,int> > final2;
+    	while(p1 < final.size() || p2 < tmp.size())
+    	{
+    		if (p1 == final.size() || tmp[p2].first < final[p1].first) {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p2++;}
+    		else if (p2 == tmp.size() || final[p1].first < tmp[p2].first) {final2.push_back(final[p1]); p1++; }
+    		else if (final[p1].second <= tmp[p2].second) {final2.push_back(final[p1]); p1++; p2++;}
+    		else {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p1++; p2++;}
+	   		if (final2.size() == k) break;
+    	}
+    	final = final2;
+    }
+    void mergeIn(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, k)
+    {
+    	//merge v1, v2, store in tmp, merge tmp, final store in final, keep change in store
+    	vector<pair<int,int> > tmp;
+    	int p1,p2;
+    	p1 = p2 = 0;
+    	while(p1 < v1.size() || p2 < v2.size())
+    	{
+    		if (p1 == v1.size() || v2[p2].first < v1[p1].first) {tmp.push_back(v2[p2]); p2++; }
+    		else if (p2 == v2.size() || v1[p1].first < v2[p2].first) {tmp.push_back(v1[p1]); p1++; }
+    		else {tmp.push_back(max(v1[p1],v2[p2])); p1++; p2++; } //max
+    		
+    		if (tmp.size() == k) break;
+    	}
+    	
+    	p1 = p2 = 0;
+    	vector<pair<int,int> > final2;
+    	while(p1 < final.size() || p2 < tmp.size())
+    	{
+    		if (p1 == final.size() || tmp[p2].first < final[p1].first) {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p2++;}
+    		else if (p2 == tmp.size() || final[p1].first < tmp[p2].first) {final2.push_back(final[p1]); p1++; }
+    		else if (final[p1].second >= tmp[p2].second) {final2.push_back(final[p1]); p1++; p2++;} //>=
+    		else {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p1++; p2++;}
+    		if (final2.size() == k) break;
+    	}
+    	final = final2;
+    }
     void printTransformInfo()
     {
     	//print
@@ -357,28 +434,217 @@ public:
 			}
 			vote_to_halt();
 		}
-		else if (phaseNum == 3)
+		else if (phaseNum == 3) //build topChain
 		{
-		
-			//release memory
-			vector<int>().swap(countinDegreeIn);
-			vector<int>().swap(countinDegreeOut);
-			vector<int>().swap(inDegreeIn);
-			vector<int>().swap(inDegreeOut);
+			
+			if (superstep() == 1)
+			{
+				//release memory
+				vector<int>().swap(countinDegreeIn);
+				vector<int>().swap(countinDegreeOut);
+				vector<int>().swap(inDegreeIn);
+				vector<int>().swap(inDegreeOut);
 			
 			
-			//cout << "phaseNum: " << phaseNum << endl;
-			/*
-			cout << "id: " << id << endl;
-			for (int i = 0; i < Vin.size(); ++ i)
-			{
-				cout << topologicalLevelIn[i] << endl;
+				//cout << "phaseNum: " << phaseNum << endl;
+				/*
+				cout << "id: " << id << endl;
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					cout << topologicalLevelIn[i] << endl;
+				}
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					cout << topologicalLevelOut[i] << endl;
+				}
+				*/
+			
+				labelSize = 2;
+				LinIn.resize(Vin.size()); //inlabel for Vin
+				LoutIn.resize(Vin.size()); //outlabel for Vin
+				LinOut.resize(Vout.size());
+				LoutOut.resize(Vout.size());
+				
+				LtinIn.resize(Vin.size());
+				LtoutIn.resize(Vin.size());
+				LtinOut.resize(Vout.size());
+				LtoutOut.resize(Vout.size());
+				
+				LcinIn.resize(Vin.size());
+				LcoutIn.resize(Vin.size());
+				LcinOut.resize(Vout.size());
+				LcoutOut.resize(Vout.size());
+				
+				vector<int> send(3);
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					LinIn[i].push_back(make_pair(id, Vin[i]));
+					LoutIn[i].push_back(make_pair(id, Vin[i]));
+					
+					send[1] = LoutIn[i][0].first;
+					send[2] = LoutIn[i][0].second;
+					for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+					{
+						send[0] = Vin[i]-VinNeighbors[i][j].w;	//time
+						send_message(VinNeighbors[i][j].v, send);
+					}
+				}
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					LinOut[i].push_back(make_pair(id, Vout[i]));
+					LoutOut[i].push_back(make_pair(id, Vout[i]));
+					
+					send[1] = LinOut[i][0].first;
+					send[2] = LinOut[i][0].second;
+					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+					{
+						send[0] = -(Vout[i]+VoutNeighbors[i][j].w); //- means in-label
+						send_message(VoutNeighbors[i][j].v, send);
+					}
+				}
 			}
-			for (int i = 0; i < Vout.size(); ++ i)
+			else //message: t(in-, out+), <int,int>
 			{
-				cout << topologicalLevelOut[i] << endl;
+				//clear Lt, Lc
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					LtinIn[i].clear();
+					LtoutIn[i].clear();
+					LcinIn[i].clear();
+					LcoutIn[i].clear();
+				}
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					LtinOut[i].clear();
+					LtoutOut[i].clear();
+					LcinOut[i].clear();
+					LcoutOut[i].clear();
+				}
+				
+				for (int i = 0; i < messages.size(); ++ i) //receive messages and save in Lt
+				{
+					vector<int>& msg = messages[i];
+					if (msg[0] >= 0) //out-label
+					{
+						LtoutOut[msg[0]].push_back(make_pair(msg[1], msg[2]));
+					}
+					else if (msg[0] < 0) //in-label
+					{
+						LtinIn[-msg[0]].push_back(make_pair(msg[1], msg[2]));
+					}
+				}
+				for (int i = 0; i < Vin.size(); ++ i) sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
+				for (int i = 0; i < Vout.size(); ++ i) sort(LtoutOut[i].begin(), LtoutOut[i].end());
+				
+				//reverse topological order
+				int p1 = Vin.size()-1;
+				int p2 = Vout.size()-1;
+				while(p1>=0||p2>=0)
+				{
+					if (p1 < 0 || Vin[p1] <= Vout[p2])
+					{
+						//visit Vout[p2], then p2--
+						//merge LoutOut[p2] with LtoutOut[p2] and potentially LcoutOut[p2+1]
+						if (p2 == Vout.size()-1)
+						{
+							vector<pair<int,int> > tmp;
+							mergeOut(LoutOut[p2], tmp, LtoutOut[p2], LcoutOut[p2], labelSize);
+						}
+						else mergeOut(LoutOut[p2], LcoutOut[p2+1], LtoutOut[p2], LcoutOut[p2], labelSize);
+						
+						p2--;
+					}
+					else if (p2 < 0 || Vin[p1] > Vout[p2])
+					{
+						//visit Vin[p1], then p1 --
+						if (p1 == Vin.size()-1)
+						{
+							vector<pair<int,int> > tmp;//,tmp2;
+							if (toOut[p1] == -1) ;//mergeOut(LoutIn[p1], tmp, tmp2, LcoutIn[p1], labelSize);
+							else mergeOut(LoutIn[p1], tmp, lcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+						}
+						else
+						{
+							if (toOut[p1] == -1 )
+							{
+								vector<pair<int,int> > tmp;
+								mergeOut(LoutIn[p1], LcoutIn[p1+1], tmp2, LcoutIn[p1], labelSize);
+							}
+							else mergeOut(LoutIn[p1], LcoutIn[p1+1], LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+						}
+						p1--;
+					}
+				}
+				//topological order
+				p1 = p2 = 0;
+				while(p1 < Vin.size() || p2 < Vout.size())
+				{
+					if (p1 == Vin.size() || Vin[p1] > Vout[p2])
+					{
+						//visit Vout[p2]
+						if (p2 == 0)
+						{
+							vector<pair<int,int> > tmp;//,tmp2;
+							if (toIn[p2] == -1) ; //mergeIn(LinOut[p2], tmp, tmp2, LcinOut[p2], labelSize);
+							else mergeIn(LinOut[p2], tmp, LcinIn[toIn[p2]], LcinOut[p2], labelSize);
+						}
+						else 
+						{
+							if (toIn[p2] == -1) 
+							{	
+								vector<pair<int,int> > tmp;
+								mergeIn(LinOut[p2], LcinOut[p2-1], tmp, LcinOut[p2], labelSize);
+							}
+							else mergeIn(LinOut[p2], LcinOut[p2-1], LcinIn[toIn[p2]], LcinOut[p2], labelSize);
+						}
+						p2++;
+					}
+					else if (p2 == Vout.size() || Vin[p1] <= Vin[p2])
+					{
+						if (p1 == 0)
+						{	
+							vector<pair<int,int> > tmp;
+							mergeIn(LinIn[p1], tmp, LtinIn[p1], LcinIn[p1], labelSize);
+						}
+						else mergeIn(LinIn[p1], LcinIn[p1-1], LtinIn[p1], LcinIn[p1], labelSize);
+						p1++;
+					}
+				}
+				//send messages
+				vector<int> send(3);
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					if (VcoutIn[i].size() > 0)
+					{
+						for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+						{
+							send[0] = Vin[i]-VinNeighbors[i][j].w;
+							for (int k = 0; k < VcoutIn[i].size(); ++ k)
+							{
+								send[1] = VcoutIn[i][k].first;
+								send[2] = VcoutIn[i][k].second;
+								send_message(VinNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					if (VcinOut.size() > 0)
+					{
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = -(Vout[i]+VoutNeighbors[i][j].w);
+							for (int k = 0; k < VcinOut[i].size(); ++ k)
+							{
+								send[1] = VcinOut[i][k].first;
+								send[2] = VcinOut[i][k].second;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
 			}
-			*/
 		}
     }
     
