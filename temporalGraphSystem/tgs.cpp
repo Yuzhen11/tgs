@@ -79,8 +79,8 @@ public:
 	vector<vector<pair<int,int> > > LoutOut;
 	
 	vector<vector<pair<int,int> > > LtinIn;
-	vector<vector<pair<int,int> > > LtinOut;
-	vector<vector<pair<int,int> > > LtoutIn;
+	//vector<vector<pair<int,int> > > LtinOut;
+	//vector<vector<pair<int,int> > > LtoutIn;
 	vector<vector<pair<int,int> > > LtoutOut;
 	
 	vector<vector<pair<int,int> > > LcinIn;
@@ -465,8 +465,8 @@ public:
 				LoutOut.resize(Vout.size());
 				
 				LtinIn.resize(Vin.size());
-				LtoutIn.resize(Vin.size());
-				LtinOut.resize(Vout.size());
+				//LtoutIn.resize(Vin.size());
+				//LtinOut.resize(Vout.size());
 				LtoutOut.resize(Vout.size());
 				
 				LcinIn.resize(Vin.size());
@@ -510,13 +510,13 @@ public:
 				for (int i = 0; i < Vin.size(); ++ i)
 				{
 					LtinIn[i].clear();
-					LtoutIn[i].clear();
+					//LtoutIn[i].clear();
 					LcinIn[i].clear();
 					LcoutIn[i].clear();
 				}
 				for (int i = 0; i < Vout.size(); ++ i)
 				{
-					LtinOut[i].clear();
+					//LtinOut[i].clear();
 					LtoutOut[i].clear();
 					LcinOut[i].clear();
 					LcoutOut[i].clear();
