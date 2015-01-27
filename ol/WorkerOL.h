@@ -615,7 +615,7 @@ class WorkerOL {
 			//=========================================================
 			
 			
-			int prePhase = 3;
+			int prePhase = 4;
 			if (_my_rank==MASTER_RANK) cout << "begin preCompute" << endl;
 			for (int i = 1; i <= prePhase; ++ i)
 			{

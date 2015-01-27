@@ -107,7 +107,7 @@ public:
     
     
     
-    void mergeOut(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, k)
+    void mergeOut(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, int k)
     {
     	//merge v1, v2, store in tmp, merge tmp, final store in final, keep change in store
     	vector<pair<int,int> > tmp;
@@ -115,7 +115,7 @@ public:
     	p1 = p2 = 0;
     	while(p1 < v1.size() || p2 < v2.size())
     	{
-    		if (p1 == v1.size() || v2[p2].first < v1[p1].first) {tmp.push_back(v2[p2]); p2++; }
+    		if (p1 == v1.size() || (p2!=v2.size()&&v2[p2].first < v1[p1].first)) {tmp.push_back(v2[p2]); p2++; }
     		else if (p2 == v2.size() || v1[p1].first < v2[p2].first) {tmp.push_back(v1[p1]); p1++; }
     		else {tmp.push_back(min(v1[p1],v2[p2])); p1++; p2++; }
     		
@@ -126,7 +126,7 @@ public:
     	vector<pair<int,int> > final2;
     	while(p1 < final.size() || p2 < tmp.size())
     	{
-    		if (p1 == final.size() || tmp[p2].first < final[p1].first) {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p2++;}
+    		if (p1 == final.size() || (p2!=tmp.size()&&tmp[p2].first < final[p1].first)) {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p2++;}
     		else if (p2 == tmp.size() || final[p1].first < tmp[p2].first) {final2.push_back(final[p1]); p1++; }
     		else if (final[p1].second <= tmp[p2].second) {final2.push_back(final[p1]); p1++; p2++;}
     		else {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p1++; p2++;}
@@ -134,7 +134,7 @@ public:
     	}
     	final = final2;
     }
-    void mergeIn(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, k)
+    void mergeIn(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, int k)
     {
     	//merge v1, v2, store in tmp, merge tmp, final store in final, keep change in store
     	vector<pair<int,int> > tmp;
@@ -142,18 +142,17 @@ public:
     	p1 = p2 = 0;
     	while(p1 < v1.size() || p2 < v2.size())
     	{
-    		if (p1 == v1.size() || v2[p2].first < v1[p1].first) {tmp.push_back(v2[p2]); p2++; }
+    		if (p1 == v1.size() || (p2!=v2.size()&&v2[p2].first < v1[p1].first)) {tmp.push_back(v2[p2]); p2++; }
     		else if (p2 == v2.size() || v1[p1].first < v2[p2].first) {tmp.push_back(v1[p1]); p1++; }
     		else {tmp.push_back(max(v1[p1],v2[p2])); p1++; p2++; } //max
     		
     		if (tmp.size() == k) break;
     	}
-    	
     	p1 = p2 = 0;
     	vector<pair<int,int> > final2;
     	while(p1 < final.size() || p2 < tmp.size())
     	{
-    		if (p1 == final.size() || tmp[p2].first < final[p1].first) {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p2++;}
+    		if (p1 == final.size() || (p2!=tmp.size() && tmp[p2].first < final[p1].first)) {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p2++;}
     		else if (p2 == tmp.size() || final[p1].first < tmp[p2].first) {final2.push_back(final[p1]); p1++; }
     		else if (final[p1].second >= tmp[p2].second) {final2.push_back(final[p1]); p1++; p2++;} //>=
     		else {final2.push_back(tmp[p2]); store.push_back(tmp[p2]); p1++; p2++;}
@@ -475,6 +474,7 @@ public:
 				LcinOut.resize(Vout.size());
 				LcoutOut.resize(Vout.size());
 				
+				
 				vector<int> send(3);
 				for (int i = 0; i < Vin.size(); ++ i)
 				{
@@ -502,6 +502,7 @@ public:
 						send_message(VoutNeighbors[i][j].v, send);
 					}
 				}
+				
 			}
 			else //message: t(in-, out+), <int,int>
 			{
@@ -520,17 +521,17 @@ public:
 					LcinOut[i].clear();
 					LcoutOut[i].clear();
 				}
-				
 				for (int i = 0; i < messages.size(); ++ i) //receive messages and save in Lt
 				{
 					vector<int>& msg = messages[i];
+					
 					if (msg[0] >= 0) //out-label
 					{
-						LtoutOut[msg[0]].push_back(make_pair(msg[1], msg[2]));
+						LtoutOut[mOut[msg[0]]].push_back(make_pair(msg[1], msg[2]));
 					}
 					else if (msg[0] < 0) //in-label
 					{
-						LtinIn[-msg[0]].push_back(make_pair(msg[1], msg[2]));
+						LtinIn[mIn[-msg[0]]].push_back(make_pair(msg[1], msg[2]));
 					}
 				}
 				for (int i = 0; i < Vin.size(); ++ i) sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
@@ -541,7 +542,7 @@ public:
 				int p2 = Vout.size()-1;
 				while(p1>=0||p2>=0)
 				{
-					if (p1 < 0 || Vin[p1] <= Vout[p2])
+					if (p1 < 0 || (p2>=0&&Vin[p1] <= Vout[p2]))
 					{
 						//visit Vout[p2], then p2--
 						//merge LoutOut[p2] with LtoutOut[p2] and potentially LcoutOut[p2+1]
@@ -561,14 +562,14 @@ public:
 						{
 							vector<pair<int,int> > tmp;//,tmp2;
 							if (toOut[p1] == -1) ;//mergeOut(LoutIn[p1], tmp, tmp2, LcoutIn[p1], labelSize);
-							else mergeOut(LoutIn[p1], tmp, lcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+							else mergeOut(LoutIn[p1], tmp, LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
 						}
 						else
 						{
 							if (toOut[p1] == -1 )
 							{
 								vector<pair<int,int> > tmp;
-								mergeOut(LoutIn[p1], LcoutIn[p1+1], tmp2, LcoutIn[p1], labelSize);
+								mergeOut(LoutIn[p1], LcoutIn[p1+1], tmp, LcoutIn[p1], labelSize);
 							}
 							else mergeOut(LoutIn[p1], LcoutIn[p1+1], LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
 						}
@@ -579,7 +580,7 @@ public:
 				p1 = p2 = 0;
 				while(p1 < Vin.size() || p2 < Vout.size())
 				{
-					if (p1 == Vin.size() || Vin[p1] > Vout[p2])
+					if (p1 == Vin.size() || (p2!=Vout.size()&&Vin[p1] > Vout[p2]))
 					{
 						//visit Vout[p2]
 						if (p2 == 0)
@@ -591,7 +592,7 @@ public:
 						else 
 						{
 							if (toIn[p2] == -1) 
-							{	
+							{
 								vector<pair<int,int> > tmp;
 								mergeIn(LinOut[p2], LcinOut[p2-1], tmp, LcinOut[p2], labelSize);
 							}
@@ -599,7 +600,7 @@ public:
 						}
 						p2++;
 					}
-					else if (p2 == Vout.size() || Vin[p1] <= Vin[p2])
+					else if (p2 == Vout.size() || Vin[p1] <= Vout[p2])
 					{
 						if (p1 == 0)
 						{	
@@ -614,15 +615,15 @@ public:
 				vector<int> send(3);
 				for (int i = 0; i < Vin.size(); ++ i)
 				{
-					if (VcoutIn[i].size() > 0)
+					if (LcoutIn[i].size() > 0)
 					{
 						for (int j = 0; j < VinNeighbors[i].size(); ++ j)
 						{
 							send[0] = Vin[i]-VinNeighbors[i][j].w;
-							for (int k = 0; k < VcoutIn[i].size(); ++ k)
+							for (int k = 0; k < LcoutIn[i].size(); ++ k)
 							{
-								send[1] = VcoutIn[i][k].first;
-								send[2] = VcoutIn[i][k].second;
+								send[1] = LcoutIn[i][k].first;
+								send[2] = LcoutIn[i][k].second;
 								send_message(VinNeighbors[i][j].v, send);
 							}
 						}
@@ -630,21 +631,52 @@ public:
 				}
 				for (int i = 0; i < Vout.size(); ++ i)
 				{
-					if (VcinOut.size() > 0)
+					if (LcinOut.size() > 0)
 					{
 						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
 						{
 							send[0] = -(Vout[i]+VoutNeighbors[i][j].w);
-							for (int k = 0; k < VcinOut[i].size(); ++ k)
+							for (int k = 0; k < LcinOut[i].size(); ++ k)
 							{
-								send[1] = VcinOut[i][k].first;
-								send[2] = VcinOut[i][k].second;
+								send[1] = LcinOut[i][k].first;
+								send[2] = LcinOut[i][k].second;
 								send_message(VoutNeighbors[i][j].v, send);
 							}
 						}
 					}
 				}
 			}
+		}
+		else if (phaseNum == 4)
+		{
+			if (superstep() == 1)
+			{
+				/*
+				cout << "id: " << id << endl;
+				cout << "Vin" << endl;
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					cout << Vin[i] << endl;
+					cout << "Lin: ";
+					for (int j = 0; j < LinIn[i].size(); ++ j) cout << LinIn[i][j].first<< " " << LinIn[i][j].second << "; ";
+					cout << endl;
+					cout << "Lout: ";
+					for (int j = 0; j < LoutIn[i].size(); ++ j) cout << LoutIn[i][j].first<< " " << LoutIn[i][j].second << "; ";
+					cout << endl;
+				}
+				cout << "Vout" << endl;
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					cout << Vout[i] << endl;
+					cout << "Lin: ";
+					for (int j = 0; j < LinOut[i].size(); ++ j) cout << LinOut[i][j].first<< " " << LinOut[i][j].second << "; ";
+					cout << endl;
+					cout << "Lout ";
+					for (int j = 0; j < LoutOut[i].size(); ++ j) cout << LoutOut[i][j].first<< " " << LoutOut[i][j].second << "; ";
+					cout << endl;
+				}
+				*/
+			}		
 		}
     }
     
