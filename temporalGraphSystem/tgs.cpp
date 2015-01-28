@@ -11,6 +11,7 @@ string in_path = "/yuzhen/toyP";
 //string in_path = "/yuzhen/editP";
 string out_path = "/yuzhen/output";
 bool use_combiner = true;
+const int inf = 1e9;
 
 struct vertexValue {
     vector<vector<pair<int,int> > > tw; //(t,w)
@@ -100,10 +101,7 @@ public:
         */
         return -1;
     }
-    virtual void compute(MessageContainer& messages)
-    {
-    	return;
-    }
+    virtual void compute(MessageContainer& messages);
     
     
     
@@ -458,7 +456,7 @@ public:
 				}
 				*/
 			
-				labelSize = 2;
+				labelSize = 5;
 				LinIn.resize(Vin.size()); //inlabel for Vin
 				LoutIn.resize(Vin.size()); //outlabel for Vin
 				LinOut.resize(Vout.size());
@@ -682,6 +680,57 @@ public:
     
     
 };
+
+void temporalVertex::compute(MessageContainer& messages)
+{
+	vector<int> queryContainer = get_query();
+	//cout << "queryContainer: " << endl;
+	//for (int i = 0; i < queryContainer.size(); ++ i) cout << queryContainer[i] << endl;
+	
+	//get neighbors: 0/1, v, (t1,t2)
+	if (queryContainer[0] == 0)
+	{
+		if (superstep() == 1)
+		{
+			int t1 = 0; int t2 = inf;
+			if (queryContainer.size() == 4) {t1 = queryContainer[2]; t2 = queryContainer[3];}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			{
+				int idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
+				}
+			}
+		}
+		vote_to_halt();
+		
+	}
+	else if (queryContainer[0] == 1)
+	{
+		if (superstep() == 1)
+		{
+			int t1 = 0; int t2 = inf;
+			if (queryContainer.size() == 4) {t1 = queryContainer[2]; t2 = queryContainer[3];}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mIn.lower_bound(t1);
+			it2 = mIn.upper_bound(t2);
+			for (it = it1; it!=mIn.end() && it!=it2; ++it)
+			{
+				int idx = it->second;
+				for (int j = 0; j < VinNeighbors[idx].size(); ++ j)
+				{
+					cout << "(" << VinNeighbors[idx][j].v << " " << Vin[idx] << " " << VinNeighbors[idx][j].w << ")"<< endl;
+				}
+			}
+		}
+		vote_to_halt();
+		
+	}
+}
 
 //define worker class
 class temporalWorker : public WorkerOL<temporalVertex>{

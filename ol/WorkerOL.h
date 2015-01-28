@@ -287,10 +287,10 @@ class WorkerOL {
 		}
 
 		//functions to be called in UDF init():
-		QueryT get_query()//called in compute()
+		QueryT* get_query()//called in compute()
 		{
 			TaskT& task=*(TaskT*)query_entry();
-			return task.query;
+			return &task.query;
 		}
 
 		//WorkerOL/UDF_init() calls activate() to add a vertex to active_set
@@ -303,7 +303,19 @@ class WorkerOL {
 		//system call
 		void task_init()
 		{
-			init(vertexes);
+			//init(vertexes);
+			
+			QueryT& queryContainer = *get_query();
+			//cout << "queryContainer: " << endl;
+			//cout << queryContainer.size() << endl;
+			//for (int i = 0; i < queryContainer.size(); ++ i) cout << queryContainer[i] << endl;
+			if (queryContainer[0] == 0 || queryContainer[0] == 1)
+			{
+				//get neighbors: 0, v, (t1,t2)
+				int src = queryContainer[1];
+				int pos = get_vpos(src);
+				if (pos != -1) activate(pos);
+			}
 		}
 
 		//------
@@ -622,7 +634,7 @@ class WorkerOL {
 				//if (_my_rank==MASTER_RANK) cout << "phaseNum: " << i << endl;
 				preCompute(i);
 			}
-			sleep(100000);
+			//sleep(100000);
 			
 			init_timers();
 			while(update_tasks())
