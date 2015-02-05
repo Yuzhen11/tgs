@@ -31,14 +31,21 @@ class Task
 		//query metadata
 		QueryT query;
 		int superstep;//=-1 means dumping, -2 means dumped
+		int maxSuperstep;
 		VecsT out_messages;
 		char bor_bitmap;
 		void* aggregator;
 		void* agg;
 		double start_time;
+		
+		vector<int> dst_info;
+		// in:(int,int)... out:(int,int)... topologicalLevel
+		vector<pair<int,int> > dst_Lin, dst_Lout;
+		int dst_topologicalLevel;
 
 		Task()
 		{
+			maxSuperstep=0;
 			superstep=0;
 			bor_bitmap=0;
 			start_time=get_current_time();
@@ -46,6 +53,7 @@ class Task
 
 		Task(QueryT q)
 		{
+			maxSuperstep=0;
 			query=q;
 			superstep=0;
 			bor_bitmap=0;
@@ -81,11 +89,13 @@ class Task
 		{
 		    setBit(FORCE_TERMINATE_ORBIT);
 		}
+		
 
 		//called before starting another computing superstep
 		void start_another_superstep()
 		{
 			superstep++;
+			maxSuperstep = superstep;
 			clearBits();
 		}
 
@@ -96,11 +106,16 @@ class Task
 			char bits_bor = all_bor(bor_bitmap);
 			if (getBit(FORCE_TERMINATE_ORBIT, bits_bor) == 1)
 			{
+				//maxSuperstep = superstep;
 				superstep=-1;
 				return;
 			}
 			active_vnum() = all_sum(active.size());
-			if(active_vnum() == 0 && getBit(HAS_MSG_ORBIT, bits_bor) == 0) superstep=-1;
+			if(active_vnum() == 0 && getBit(HAS_MSG_ORBIT, bits_bor) == 0) 
+			{
+				//maxSuperstep = superstep;
+				superstep=-1;
+			}
 		}
 
 		//WorkerOL calls it to move active_set to a new set

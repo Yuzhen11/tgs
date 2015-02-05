@@ -493,4 +493,51 @@ void slaveBcast(T& to_get)
     StopTimer(COMMUNICATION_TIMER);
 }
 
+//-----------------broadcast with _my_rank---------------------//
+template <class T>
+void sendBcast(T& to_send, int src)
+{ //broadcast
+    StartTimer(COMMUNICATION_TIMER);
+
+    StartTimer(SERIALIZATION_TIMER);
+    ibinstream m;
+    m << to_send;
+    int size = m.size();
+    StopTimer(SERIALIZATION_TIMER);
+
+    StartTimer(TRANSFER_TIMER);
+    MPI_Bcast(&size, 1, MPI_INT, src, MPI_COMM_WORLD);
+
+    char* sendbuf = m.get_buf();
+    MPI_Bcast(sendbuf, size, MPI_CHAR, src, MPI_COMM_WORLD);
+    StopTimer(TRANSFER_TIMER);
+
+    StopTimer(COMMUNICATION_TIMER);
+}
+template <class T>
+void receiveBcast(T& to_get, int src)
+{ //broadcast
+    StartTimer(COMMUNICATION_TIMER);
+
+    int size;
+
+    StartTimer(TRANSFER_TIMER);
+    MPI_Bcast(&size, 1, MPI_INT, src, MPI_COMM_WORLD);
+    StopTimer(TRANSFER_TIMER);
+
+    StartTimer(TRANSFER_TIMER);
+    char* recvbuf = new char[size]; //obinstream will delete it
+    MPI_Bcast(recvbuf, size, MPI_CHAR, src, MPI_COMM_WORLD);
+    StopTimer(TRANSFER_TIMER);
+
+    StartTimer(SERIALIZATION_TIMER);
+    obinstream um(recvbuf, size);
+    um >> to_get;
+    StopTimer(SERIALIZATION_TIMER);
+
+    StopTimer(COMMUNICATION_TIMER);
+}
+
+
+
 #endif

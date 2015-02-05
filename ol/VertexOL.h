@@ -120,10 +120,10 @@ class VertexOL {
 
 		//========================================
 
-		static QueryT get_query()//called in compute()
+		static QueryT* get_query()//called in compute()
 		{
 			TaskT& task=*(TaskT*)query_entry();
-			return task.query;
+			return &task.query;
 		}
 
 		inline NQValueT& nqvalue()

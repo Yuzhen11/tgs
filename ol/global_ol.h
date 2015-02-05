@@ -59,4 +59,15 @@ inline void set_query_entry(void* q)
 }
 //-----------------------------------------
 
+
+//queryNotation:
+#define PRECOMPUTE 0
+#define OUT_NEIGHBORS_QUERY 1
+#define IN_NEIGHBORS_QUERY 2
+#define REACHABILITY_QUERY 3
+#define REACHABILITY_QUERY_TOPCHAIN 4
+#define EARLIEST_QUERY_TOPCHAIN 5
+
+#define labelSize 2
+const int inf = 1e9;
 #endif

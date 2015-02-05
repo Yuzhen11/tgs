@@ -171,8 +171,9 @@ class WorkerOL {
 		//function for users to call in init(VertexContainer& vertex_vec)
 		inline IndexT& idx(){ return index; }
 
-		void compute_dump()
+		int compute_dump()
 		{
+			//cout << _my_rank << " I am compute_dump" << endl;
 			QMapIter qit = queries.begin();
 			while(qit != queries.end())
 			{
@@ -183,7 +184,7 @@ class WorkerOL {
 					set_qid(qit->first);
 					set_query_entry(&task);
 					//process this query
-					task.start_another_superstep();
+					task.start_another_superstep(); //if (_my_rank == 0) cout << task.superstep << endl;
 					//- aggregator init (must call init() after superstep is increased)
 					AggregatorT* aggregator;
 					if(use_agg)
@@ -203,6 +204,10 @@ class WorkerOL {
 					}
 					//------
 					++qit;
+					
+					
+					task.check_termination();
+					if (task.superstep == -1) return -1;
 				}
 				else//dump
 				{
@@ -219,8 +224,10 @@ class WorkerOL {
 					{
 						double time=task.get_runtime();
 						double rate=((double)accessed)/get_vnum();
+						//cout << "accessed: " << accessed << endl;
 						//--------------------------------------------
 						cout<<"Q"<<qit->first<<" dumped, response time: "<<time<<" seconds, vertex access rate: "<<rate<<endl;
+						cout<<"superstep #: " << task.maxSuperstep << endl;
 						//--------------------------------------------
 					}
 					//free the query task
@@ -231,6 +238,7 @@ class WorkerOL {
 					}
 					queries.erase(qit++);
 				}
+				return 0;
 			}
 			//-----------------------------------
 			//aggregating
@@ -269,6 +277,7 @@ class WorkerOL {
 					}
 				}
 			}
+			//cout << _my_rank << " compute completed." << endl;
 		}
 
 		//agg_sync() to be implemented here
@@ -309,9 +318,10 @@ class WorkerOL {
 			//cout << "queryContainer: " << endl;
 			//cout << queryContainer.size() << endl;
 			//for (int i = 0; i < queryContainer.size(); ++ i) cout << queryContainer[i] << endl;
-			if (queryContainer[0] == 0 || queryContainer[0] == 1)
+			if (queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY || queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN)
 			{
-				//get neighbors: 0, v, (t1,t2)
+				//get neighbors: 1/2, v, (t1,t2)
+				//reachability: 3/4, src, dst, (t1, t2)
 				int src = queryContainer[1];
 				int pos = get_vpos(src);
 				if (pos != -1) activate(pos);
@@ -527,6 +537,9 @@ class WorkerOL {
 					}while(server->recv_msg(type));
 				}
 				masterBcast(new_queries);
+				
+				//broadcast dst's label
+				bcastLabel(new_queries);
 			}
 			else
 			{
@@ -559,11 +572,126 @@ class WorkerOL {
 						//init active vertices
 						task_init();
 					}
+					//broadcast dst's label
+					bcastLabel(new_queries);
 				}
 			}
 			return true;
 		}
-
+		
+		void bcastLabel(vector<qinfo>& new_queries)
+		{
+			for (int i = 0; i < new_queries.size(); ++ i)
+			{
+				qinfo& info = new_queries[i];
+				if (info.q[0] != REACHABILITY_QUERY_TOPCHAIN) continue; //do not need to use topChain
+				TaskT& task = queries[info.qid];
+				//set query environment
+				set_qid(info.qid);
+				set_query_entry(&task);
+				
+				//find dst
+				QueryT& queryContainer = *get_query();
+				int dst = queryContainer[2]; //queryType: 3, src, dst,
+				int pos = get_vpos(dst);
+				//message type
+				task.dst_info.resize(labelSize*4+3);
+				// in:(int,int)... out:(int,int)... topologicalLevel
+				if (pos != -1)
+				{
+					//task.dst_info[0] = _my_rank;
+					
+					VertexOLT* v=vertexes[pos];
+					int t1, t2;
+					t1 = 0; t2 = inf;
+					if (queryContainer.size() == 5) t2 = queryContainer[4];
+					map<int,int>::iterator it;
+					it = (v->mIn).upper_bound(t2); 
+					if (it == (v->mIn).begin()) //check whether In is empty
+					{
+						task.dst_info[0] = -1;
+					}
+					else
+					{
+						it --;
+						int idx = it->second;
+						//cout << "idx: " << idx << endl;
+						task.dst_info[0] = (v->LinIn)[idx].size();
+						for (int j = 0; j < task.dst_info[0]; ++ j) 
+						{task.dst_info[2*j+1] = (v->LinIn)[idx][j].first ;task.dst_info[2*j+2] = (v->LinIn)[idx][j].second;}
+						
+						task.dst_info[2*labelSize+1] = (v->LoutIn)[idx].size();
+						for (int j = 0; j < task.dst_info[2*labelSize+1]; ++ j) 
+						{task.dst_info[j*2+2*labelSize+2] = (v->LoutIn)[idx][j].first;task.dst_info[j*2+2*labelSize+3] = (v->LoutIn)[idx][j].second;}
+						task.dst_info[labelSize*4+2] = (v->topologicalLevelIn)[idx];
+					}
+					/*
+					for (int j = 0; j < task.dst_info.size(); ++ j) cout << task.dst_info[j] << " ";
+					cout << endl;
+					*/
+				}
+				
+				//send to master		
+				int dstWorker;
+				if (_my_rank == MASTER_RANK)
+				{
+					vector<int> workerInfo(_num_workers);
+					//get dstWorker from others
+					masterGather(workerInfo);
+					dstWorker = MASTER_RANK;
+					for (int i = 0; i < workerInfo.size(); ++ i)
+					{
+						if (i != _my_rank && workerInfo[i]!=-1) {dstWorker = workerInfo[i]; break;}
+					}
+					//bcastWorker to others
+					masterBcast(dstWorker);
+				}
+				else
+				{
+					int toSend;
+					if (pos == -1) toSend = -1;
+					else toSend = _my_rank;
+					//send to master
+					slaveGather(toSend);
+					//receive from master
+					slaveBcast(dstWorker);
+				}
+				
+				if (pos != -1)
+				{
+					sendBcast(task.dst_info, dstWorker);
+				}
+				else
+				{
+					receiveBcast(task.dst_info, dstWorker);
+				}
+				
+				if (task.dst_info[0] != -1)
+				{
+					
+					task.dst_Lin.resize(task.dst_info[0]);
+					for (int j = 0; j < task.dst_info[0]; ++j) task.dst_Lin[j] = (make_pair(task.dst_info[j*2+1], task.dst_info[j*2+2]));
+					task.dst_Lout.resize(task.dst_info[labelSize*2+1]);
+					for (int j = 0; j < task.dst_info[labelSize*2+1]; ++j) task.dst_Lout[j] = (make_pair(task.dst_info[j*2+2*labelSize+2], task.dst_info[j*2+2*labelSize+3]));
+					task.dst_topologicalLevel = task.dst_info[labelSize*4+2];
+					
+				}
+				/*
+				cout << "------" << endl;
+				cout << "id " << _my_rank << endl;
+				cout << "LinSize " << task.dst_Lin.size() << endl;
+				cout << "LoutSize " << task.dst_Lout.size() << endl;
+				cout << "Lin " << endl;
+				for (int j = 0; j < task.dst_Lin.size(); ++ j) cout << task.dst_Lin[j].first << " " << task.dst_Lin[j].second << endl;
+				cout << "Lout" << endl;
+				for (int j = 0; j < task.dst_Lout.size(); ++ j) cout << task.dst_Lout[j].first << " " << task.dst_Lout[j].second << endl;
+				cout << "topologicalLevel: " << task.dst_topologicalLevel << endl;
+				*/
+			}
+			//cout << _my_rank << " bcast done" << endl;
+		}
+		
+		
 		//================================================
 
 		// run the worker
@@ -641,9 +769,12 @@ class WorkerOL {
 			{
 				ResetTimer(WORKER_TIMER);
 				ResetTimer(4);
-				compute_dump();
-				message_buffer->combine();
-				message_buffer->sync_messages();
+				int ret = compute_dump();
+				if (ret != -1)
+				{
+					message_buffer->combine();
+					message_buffer->sync_messages();
+				}
 				//--------------------------------
 				worker_barrier();//VERY IMPORTANT
 				//in sync_messages(), master sends to other workers, and it should be before update_tasks(), where master also sends to other workers
@@ -666,6 +797,7 @@ class WorkerOL {
 			
 			int phaseSuperstep = 0;
 			QueryT q;
+			q.push_back(PRECOMPUTE);
 			TaskT& task = queries[nxt_qid] = TaskT(q);
 			//set query environment
 			set_qid(nxt_qid);

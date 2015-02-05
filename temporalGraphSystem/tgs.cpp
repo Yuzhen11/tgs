@@ -11,7 +11,7 @@ string in_path = "/yuzhen/toyP";
 //string in_path = "/yuzhen/editP";
 string out_path = "/yuzhen/output";
 bool use_combiner = true;
-const int inf = 1e9;
+
 
 struct vertexValue {
     vector<vector<pair<int,int> > > tw; //(t,w)
@@ -48,7 +48,7 @@ bool cmp2(const pair<int,int>& p1, const pair<int,int>& p2)
 }
 
 //idType, qvalueType, nqvalueType, messageType, queryType
-class temporalVertex : public VertexOL<VertexID, int, vertexValue, vector<int>, vector<int> >{
+class temporalVertex : public VertexOL<VertexID, vector<int>, vertexValue, vector<int>, vector<int> >{
 public:
 	
 	std::map<int,int> mOut;
@@ -73,7 +73,7 @@ public:
 	vector<int> countinDegreeOut;
 	
 	//topChain
-	int labelSize;
+	//int labelSize; global
 	vector<vector<pair<int,int> > > LinIn;
 	vector<vector<pair<int,int> > > LinOut;
 	vector<vector<pair<int,int> > > LoutIn;
@@ -91,7 +91,7 @@ public:
 	
 
 	//Step 5.1: define UDF1: query -> vertex's query-specific init state
-    virtual int init_value(vector<int>& query) //QValueT init_value(QueryT& query
+    virtual vector<int> init_value(vector<int>& query) //QValueT init_value(QueryT& query
     {
     	/*
         if (id == query.v1)
@@ -99,11 +99,62 @@ public:
         else
             return INT_MAX;
         */
-        return -1;
+        vector<int>& queryContainer = *get_query();
+        vector<int> ret;
+        if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN)
+        {
+        	if (Vout.size() > 0) ret.push_back(Vout[Vout.size()-1]+1); //lastT
+        	else ret.push_back(-1);
+        }
+        return ret;
     }
     virtual void compute(MessageContainer& messages);
     
     
+    
+    int labelCompare(int idx) //-1: cannot reach; 1: reach; 0:cannot answer
+    {
+    	TaskT& task=*(TaskT*)query_entry();
+    	//topo
+    	if (topologicalLevelOut[idx] >= task.dst_topologicalLevel) return -1;
+    	
+    	//topoChain
+    	int p1, p2;
+    	p1 = p2 = 0;
+    	while(p1 < LoutOut[idx].size() && p2 < task.dst_Lout.size() )
+    	{
+    		if (LoutOut[idx][p1].first == task.dst_Lout[p2].first)
+    		{
+    			if (LoutOut[idx][p1].second > task.dst_Lout[p2].second) return -1;
+    			p1++; p2++;
+    		}
+    		else if (LoutOut[idx][p1].first < task.dst_Lout[p2].first) p1++;
+    		else return -1;    		
+    	}
+    	
+    	p1 = p2 = 0;
+    	while(p1 < LinOut[idx].size() && p2 < task.dst_Lin.size() )
+    	{
+    		if (LinOut[idx][p1].first == task.dst_Lin[p2].first)
+    		{
+    			if (LinOut[idx][p1].second > task.dst_Lin[p2].second) return -1;
+    			p1 ++; p2++;
+    		}
+    		else if (LinOut[idx][p1].first > task.dst_Lin[p2].first) p2++;
+    		else return -1;
+    	}
+    	
+    	//intersect
+    	p1 = p2 = 0;
+    	while(p1 < LoutOut[idx].size() && p2 < task.dst_Lin.size() )
+    	{
+    		if (LoutOut[idx][p1].first == task.dst_Lin[p2].first && LoutOut[idx][p1].second <= task.dst_Lin[p2].second) return 1;
+    		else if (LoutOut[idx][p1].first == task.dst_Lin[p2].first) {p1++;p2++;}
+    		else if (LoutOut[idx][p1].first < task.dst_Lin[p2].first) p1++;
+    		else p2++;
+    	}
+    	return 0;
+    }
     
     void mergeOut(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, int k)
     {
@@ -456,7 +507,7 @@ public:
 				}
 				*/
 			
-				labelSize = 5;
+				//labelSize = 5;
 				LinIn.resize(Vin.size()); //inlabel for Vin
 				LoutIn.resize(Vin.size()); //outlabel for Vin
 				LinOut.resize(Vout.size());
@@ -683,12 +734,12 @@ public:
 
 void temporalVertex::compute(MessageContainer& messages)
 {
-	vector<int> queryContainer = get_query();
+	vector<int>& queryContainer = *get_query();
 	//cout << "queryContainer: " << endl;
 	//for (int i = 0; i < queryContainer.size(); ++ i) cout << queryContainer[i] << endl;
 	
 	//get neighbors: 0/1, v, (t1,t2)
-	if (queryContainer[0] == 0)
+	if (queryContainer[0] == OUT_NEIGHBORS_QUERY)
 	{
 		if (superstep() == 1)
 		{
@@ -697,9 +748,10 @@ void temporalVertex::compute(MessageContainer& messages)
 			std::map<int,int>::iterator it,it1,it2;
 			it1 = mOut.lower_bound(t1);
 			it2 = mOut.upper_bound(t2);
+			int idx;
 			for (it = it1; it!=mOut.end() && it!=it2; ++it)
 			{
-				int idx = it->second;
+				idx = it->second;
 				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
 				{
 					cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
@@ -707,9 +759,8 @@ void temporalVertex::compute(MessageContainer& messages)
 			}
 		}
 		vote_to_halt();
-		
 	}
-	else if (queryContainer[0] == 1)
+	else if (queryContainer[0] == IN_NEIGHBORS_QUERY)
 	{
 		if (superstep() == 1)
 		{
@@ -718,9 +769,10 @@ void temporalVertex::compute(MessageContainer& messages)
 			std::map<int,int>::iterator it,it1,it2;
 			it1 = mIn.lower_bound(t1);
 			it2 = mIn.upper_bound(t2);
+			int idx;
 			for (it = it1; it!=mIn.end() && it!=it2; ++it)
 			{
-				int idx = it->second;
+				idx = it->second;
 				for (int j = 0; j < VinNeighbors[idx].size(); ++ j)
 				{
 					cout << "(" << VinNeighbors[idx][j].v << " " << Vin[idx] << " " << VinNeighbors[idx][j].w << ")"<< endl;
@@ -728,7 +780,290 @@ void temporalVertex::compute(MessageContainer& messages)
 			}
 		}
 		vote_to_halt();
-		
+	}
+	else if (queryContainer[0] == REACHABILITY_QUERY)
+	{
+		/*
+			message type: t;
+		*/
+		int t1 = 0;
+		int t2 = inf;
+		if (superstep() == 1)
+		{
+			cout << "starting vertex: " << id << endl;
+			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+			if (id == queryContainer[2])
+			{
+				//done
+				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				forceTerminate(); return;
+			}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					//cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+		}
+		else
+		{
+			if (queryContainer.size() == 5) {t2 = queryContainer[4];}		
+			int& lastT = qvalue()[0];
+			//receive messages
+			int mini = inf;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] < mini) mini = messages[i][0];
+			}
+			//cout << "id:" << id << " mini:" << mini << " lastT:" << lastT << endl;
+			if (id == queryContainer[2] && mini <= t2)
+			{
+				//done
+				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				forceTerminate(); return;
+			}
+			if (mini < lastT)
+			{	
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.lower_bound(mini);
+				start = it->second;
+				end = min(lastT, t2);
+				vector<int> send(1);
+				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+				{
+					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+					{
+						send[0] = Vout[i] + VoutNeighbors[i][j].w;
+						send_message(VoutNeighbors[i][j].v, send);
+					}
+				}
+				//reset lastT
+				lastT = mini;
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN)
+	{
+		/*
+			message type: t;
+		*/
+		int t1 = 0;
+		int t2 = inf;
+		if (superstep() == 1)
+		{
+			cout << "starting vertex: " << id << endl;
+			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+			if (id == queryContainer[2])
+			{
+				//done
+				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				forceTerminate(); return;
+			}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			{
+				idx = it->second;
+				
+				int ret = labelCompare(idx);
+				if (ret != 0)
+				{
+					if (ret == 1) //can visit
+					{
+						send[0] = 0;
+						send_message(queryContainer[2], send);
+						return;
+					}
+					else if (ret == -1) //cannot visit from this vertex, need to be pruned
+					{
+						vote_to_halt();
+						return;
+					}
+				}
+				
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					//cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+		}
+		else
+		{
+			if (queryContainer.size() == 5) {t2 = queryContainer[4];}		
+			int& lastT = qvalue()[0];
+			//receive messages
+			int mini = inf;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] < mini) mini = messages[i][0];
+			}
+			//cout << "id:" << id << " mini:" << mini << " lastT:" << lastT << endl;
+			if (id == queryContainer[2] && mini <= t2)
+			{
+				//done
+				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				forceTerminate(); return;
+			}
+			if (mini < lastT)
+			{	
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.lower_bound(mini);
+				start = it->second;
+				end = min(lastT, t2);
+				vector<int> send(1);
+				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+				{
+					
+					int ret = labelCompare(i);
+					if (ret != 0)
+					{
+						if (ret == 1) //can visit
+						{
+							send[0] = 0;
+							send_message(queryContainer[2], send);
+							return;
+						}
+						else if (ret == -1) //cannot visit from this vertex, need to be pruned
+						{
+							vote_to_halt();
+							return;
+						}
+					}
+					
+					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+					{
+						send[0] = Vout[i] + VoutNeighbors[i][j].w;
+						send_message(VoutNeighbors[i][j].v, send);
+					}
+				}
+				//reset lastT
+				lastT = mini;
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == EARLIEST_QUERY_TOPCHAIN)
+	{
+		/*
+			message type: t;
+		*/
+		int t1 = 0;
+		int t2 = inf;
+		if (superstep() == 1)
+		{
+			cout << "starting vertex: " << id << endl;
+			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+			if (id == queryContainer[2])
+			{
+				//done
+				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				forceTerminate(); return;
+			}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			{
+				idx = it->second;
+				
+				int ret = labelCompare(idx);
+				if (ret != 0)
+				{
+					if (ret == 1) //can visit
+					{
+						send[0] = 0;
+						send_message(queryContainer[2], send);
+						return;
+					}
+					else if (ret == -1) //cannot visit from this vertex, need to be pruned
+					{
+						vote_to_halt();
+						return;
+					}
+				}
+				
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					//cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+		}
+		else
+		{
+			if (queryContainer.size() == 5) {t2 = queryContainer[4];}		
+			int& lastT = qvalue()[0];
+			//receive messages
+			int mini = inf;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] < mini) mini = messages[i][0];
+			}
+			//cout << "id:" << id << " mini:" << mini << " lastT:" << lastT << endl;
+			if (id == queryContainer[2] && mini <= t2)
+			{
+				//done
+				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				forceTerminate(); return;
+			}
+			if (mini < lastT)
+			{	
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.lower_bound(mini);
+				start = it->second;
+				end = min(lastT, t2);
+				vector<int> send(1);
+				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+				{
+					
+					int ret = labelCompare(i);
+					if (ret != 0)
+					{
+						if (ret == 1) //can visit
+						{
+							send[0] = 0;
+							send_message(queryContainer[2], send);
+							return;
+						}
+						else if (ret == -1) //cannot visit from this vertex, need to be pruned
+						{
+							vote_to_halt();
+							return;
+						}
+					}
+					
+					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+					{
+						send[0] = Vout[i] + VoutNeighbors[i][j].w;
+						send_message(VoutNeighbors[i][j].v, send);
+					}
+				}
+				//reset lastT
+				lastT = mini;
+			}
+		}
+		vote_to_halt();
 	}
 }
 
