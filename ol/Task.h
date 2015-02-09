@@ -42,9 +42,21 @@ class Task
 		// in:(int,int)... out:(int,int)... topologicalLevel
 		vector<pair<int,int> > dst_Lin, dst_Lout;
 		int dst_topologicalLevel;
+		int dstWorker; //task dst worker
+		
+		int l, r, m; //for binary search
+		bool first;
+		bool visit;
+		int ans;
+		bool restart;
+		int roundNum; //record how many reachability round needed;
 
 		Task()
 		{
+			roundNum = 0;
+			restart = 0;
+			ans = -1;
+			visit = 0;
 			maxSuperstep=0;
 			superstep=0;
 			bor_bitmap=0;
@@ -53,6 +65,10 @@ class Task
 
 		Task(QueryT q)
 		{
+			roundNum = 0;
+			restart = 0;
+			ans = -1;
+			visit = 0;
 			maxSuperstep=0;
 			query=q;
 			superstep=0;
@@ -89,7 +105,19 @@ class Task
 		{
 		    setBit(FORCE_TERMINATE_ORBIT);
 		}
-		
+		void canVisit()
+		{
+		    setBit(CAN_VISIT);
+		}
+		bool check_canVisit()
+		{
+			char bits_bor = all_bor(bor_bitmap);
+			if (getBit(FORCE_TERMINATE_ORBIT, bits_bor) == 1)
+			{
+				return 1;
+			}	
+			else return 0;
+		}
 
 		//called before starting another computing superstep
 		void start_another_superstep()

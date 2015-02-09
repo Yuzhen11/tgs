@@ -59,6 +59,12 @@ class VertexOL {
 			TaskT& task=*(TaskT*)query_entry();
 			task.forceTerminate();
 		}
+		static void canVisit()
+		{
+			TaskT& task=*(TaskT*)query_entry();
+			task.canVisit();
+			task.visit = 1;
+		}
 
 		//========================================
 		//1. caching to avoid looking up "map" many times for the same query
@@ -210,6 +216,11 @@ class VertexOL {
 		{
 			TaskT& task=*(TaskT*)query_entry();
 			return task.superstep;
+		}
+		static int restart()
+		{
+			TaskT& task=*(TaskT*)query_entry();
+			return task.restart;
 		}
 
 		static void* get_agg()

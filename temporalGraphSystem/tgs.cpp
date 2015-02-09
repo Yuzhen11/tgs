@@ -101,7 +101,7 @@ public:
         */
         vector<int>& queryContainer = *get_query();
         vector<int> ret;
-        if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN)
+        if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN || queryContainer[0] == EARLIEST_QUERY_TOPCHAIN)
         {
         	if (Vout.size() > 0) ret.push_back(Vout[Vout.size()-1]+1); //lastT
         	else ret.push_back(-1);
@@ -796,7 +796,9 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
-				forceTerminate(); return;
+				canVisit();
+				forceTerminate();   
+				return;
 			}
 			std::map<int,int>::iterator it,it1,it2;
 			it1 = mOut.lower_bound(t1);
@@ -829,6 +831,7 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				canVisit();
 				forceTerminate(); return;
 			}
 			if (mini < lastT)
@@ -868,6 +871,7 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				canVisit();
 				forceTerminate(); return;
 			}
 			std::map<int,int>::iterator it,it1,it2;
@@ -886,6 +890,7 @@ void temporalVertex::compute(MessageContainer& messages)
 					{
 						send[0] = 0;
 						send_message(queryContainer[2], send);
+						vote_to_halt();
 						return;
 					}
 					else if (ret == -1) //cannot visit from this vertex, need to be pruned
@@ -918,7 +923,9 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
-				forceTerminate(); return;
+				canVisit();
+				forceTerminate(); 
+				return;
 			}
 			if (mini < lastT)
 			{	
@@ -938,6 +945,7 @@ void temporalVertex::compute(MessageContainer& messages)
 						{
 							send[0] = 0;
 							send_message(queryContainer[2], send);
+							vote_to_halt();
 							return;
 						}
 						else if (ret == -1) //cannot visit from this vertex, need to be pruned
@@ -964,9 +972,10 @@ void temporalVertex::compute(MessageContainer& messages)
 		/*
 			message type: t;
 		*/
+		
 		int t1 = 0;
 		int t2 = inf;
-		if (superstep() == 1)
+		if (superstep() == 1 || restart() )
 		{
 			cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
@@ -974,7 +983,9 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
-				forceTerminate(); return;
+				canVisit();
+				forceTerminate(); 
+				return;
 			}
 			std::map<int,int>::iterator it,it1,it2;
 			it1 = mOut.lower_bound(t1);
@@ -1024,6 +1035,7 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				canVisit();
 				forceTerminate(); return;
 			}
 			if (mini < lastT)

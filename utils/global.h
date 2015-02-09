@@ -146,7 +146,8 @@ inline int& active_vnum()
 enum BITS {
     HAS_MSG_ORBIT = 0,
     FORCE_TERMINATE_ORBIT = 1,
-    WAKE_ALL_ORBIT = 2
+    WAKE_ALL_ORBIT = 2,
+    CAN_VISIT = 3
 };
 //currently, only 3 bits are used, others can be defined by users
 char global_bor_bitmap;
