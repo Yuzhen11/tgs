@@ -41,8 +41,9 @@ class Task
 		vector<int> dst_info;
 		// in:(int,int)... out:(int,int)... topologicalLevel
 		vector<pair<int,int> > dst_Lin, dst_Lout;
-		int dst_topologicalLevel;
+		int dst_topologicalLevel; int dst_timeLabel;
 		int dstWorker; //task dst worker
+		int srcWorker;
 		
 		int l, r, m; //for binary search
 		bool first;
@@ -50,9 +51,13 @@ class Task
 		int ans;
 		bool restart;
 		int roundNum; //record how many reachability round needed;
+		int lsrc, rsrc;
+		
+		bool useCombiner;
 
 		Task()
 		{
+			useCombiner = 0;
 			roundNum = 0;
 			restart = 0;
 			ans = -1;
@@ -65,6 +70,7 @@ class Task
 
 		Task(QueryT q)
 		{
+			useCombiner = 0;
 			roundNum = 0;
 			restart = 0;
 			ans = -1;

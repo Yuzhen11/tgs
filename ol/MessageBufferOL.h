@@ -150,7 +150,7 @@ public:
         	for(QMapIter it = queries.begin(); it != queries.end(); it++)
         	{
         		TaskT& task=it->second;
-        		if(task.superstep!=-1) task.out_messages.combine();
+        		if(task.superstep!=-1 && task.useCombiner/*new*/) task.out_messages.combine();
         	}
         }
     }

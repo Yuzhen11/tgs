@@ -227,20 +227,25 @@ class WorkerOL {
 					set_qid(qit->first);
 					set_query_entry(&task);
 					//cout << "cp1" << endl;
+					
+					
 					/*
 						for earliest arrival path using topChain
 					*/
-					
 					if (task.query[0] == EARLIEST_QUERY_TOPCHAIN)
 					{
 						//cout << "cp1" << endl;
 						//broadcast label from dst
+						bool stop = 0;
 						if (_my_rank == task.dstWorker)
 						{
-							//cout << task.l << " " << task.r << endl;
-							//cout << task.m << endl;
+							/*
+							cout << task.l << " " << task.r << endl;
+							cout << task.m << endl;
+							cout << task.ans << endl;
+							cout << "superstep " << task.maxSuperstep << endl;
+							*/
 							
-							bool stop = 0;
 							if (task.visit)
 							{
 								task.r = task.m-1;
@@ -295,24 +300,25 @@ class WorkerOL {
 									int dst = queryContainer[2]; //queryType: 3, src, dst,
 									int pos = get_vpos(dst);
 									VertexOLT* v=vertexes[pos];
-									task.dst_info[0] = -v->Vin[task.m];
+									task.dst_info[0] = -v->Vin[task.ans];
 									cout << "(" << queryContainer[1] << "," << queryContainer[2] << ") earliest arrival time is " << -task.dst_info[0] << endl; 
 									cout << "Number of Rounds: " << task.roundNum << endl;
 								}
 							}
-							/*
-							cout << "test information" << endl;
-							cout << task.m << " " << task.dst_info[0] << " " << stop << endl;
-							*/
+							
+							sendBcast(stop, task.dstWorker);
+							
 							//put label into dst_info
-							sendBcast(task.dst_info, task.dstWorker);
+							if (!stop) sendBcast(task.dst_info, task.dstWorker);
 						}
 						else
 						{
-							receiveBcast(task.dst_info, task.dstWorker);
+							receiveBcast(stop, task.dstWorker);
+							
+							if (!stop) receiveBcast(task.dst_info, task.dstWorker);
 						}
 						
-						if (task.dst_info[0] > 0) //every vertex should contain at least one in-label
+						if (!stop) //every vertex should contain at least one in-label
 						{
 							task.dst_Lin.resize(task.dst_info[0]);
 							for (int j = 0; j < task.dst_info[0]; ++j) task.dst_Lin[j] = (make_pair(task.dst_info[j*2+1], task.dst_info[j*2+2]));
@@ -326,6 +332,8 @@ class WorkerOL {
 							task.visit = 0;
 							task.superstep = task.maxSuperstep;
 							task.restart = 1;
+							task.clearBits();
+							++qit;
 							continue;
 						}
 						else
@@ -333,6 +341,229 @@ class WorkerOL {
 							//stop
 						}
 					}
+					/*
+						fastest query
+					*/
+					if (task.query[0] == FASTEST_QUERY_TOPCHAIN)
+					{
+						//cout << "cp1" << endl;
+						//broadcast label from dst
+						int stop = 0;
+						if (_my_rank == task.dstWorker)
+						{
+							/*
+							cout << task.l << " " << task.r << endl;
+							cout << task.m << endl;
+							cout << task.ans << endl;
+							cout << "superstep " << task.maxSuperstep << endl;
+							*/
+							
+							if (task.visit)
+							{
+								task.r = task.m-1;
+								task.ans = task.m;
+								if (task.l > task.r) {stop = 1;}
+								else task.m = (task.l+task.r)/2;
+							}
+							else
+							{
+								//cannot visit
+								task.l = task.m+1;
+								if (task.l > task.r) {stop = 1;}
+								else task.m = (task.l+task.r)/2;	
+							}
+							
+							task.visit = 0;
+							if (!stop) //continue
+							{
+								int idx = task.m;
+								//find dst
+								QueryT& queryContainer = *get_query();
+								int dst = queryContainer[2]; //queryType: 3, src, dst,
+								int pos = get_vpos(dst);
+								VertexOLT* v=vertexes[pos];
+								//cout << "idx: " << idx << endl;
+								task.dst_info[0] = (v->LinIn)[idx].size();
+								for (int j = 0; j < task.dst_info[0]; ++ j) 
+								{task.dst_info[2*j+1] = (v->LinIn)[idx][j].first ;task.dst_info[2*j+2] = (v->LinIn)[idx][j].second;}
+						
+								task.dst_info[2*labelSize+1] = (v->LoutIn)[idx].size();
+								for (int j = 0; j < task.dst_info[2*labelSize+1]; ++ j) 
+								{task.dst_info[j*2+2*labelSize+2] = (v->LoutIn)[idx][j].first;task.dst_info[j*2+2*labelSize+3] = (v->LoutIn)[idx][j].second;}
+								task.dst_info[labelSize*4+2] = (v->topologicalLevelIn)[idx];
+								task.dst_info[labelSize*4+3] = v->Vin[idx];
+							}
+							else //stop
+							{
+								if (task.ans == -1) //cannot find earliest arrival path
+								{
+									QueryT& queryContainer = *get_query();
+									task.dst_info[0] = -inf;
+									cout << "(" << queryContainer[1] << "," << queryContainer[2] << ") cannot visit" << endl;
+									cout << "Number of Rounds: " << task.roundNum << endl;
+									stop = -1;
+								}
+								else 
+								{
+									QueryT& queryContainer = *get_query();
+									int dst = queryContainer[2]; //queryType: 3, src, dst,
+									int pos = get_vpos(dst);
+									VertexOLT* v=vertexes[pos];
+									task.dst_info[0] = -v->Vin[task.ans];
+									cout << "(" << queryContainer[1] << "," << queryContainer[2] << ") earliest arrival time is " << -task.dst_info[0] << endl; 
+									cout << "Number of Rounds: " << task.roundNum << endl;
+									stop = -task.dst_info[0]; //stop carry information
+								}
+							}
+							
+							sendBcast(stop, task.dstWorker);
+							
+							//put label into dst_info
+							if (!stop) sendBcast(task.dst_info, task.dstWorker);
+						}
+						else
+						{
+							receiveBcast(stop, task.dstWorker);
+							
+							if (!stop) receiveBcast(task.dst_info, task.dstWorker);
+						}
+						
+						if (!stop) //every vertex should contain at least one in-label
+						{
+							task.dst_Lin.resize(task.dst_info[0]);
+							for (int j = 0; j < task.dst_info[0]; ++j) task.dst_Lin[j] = (make_pair(task.dst_info[j*2+1], task.dst_info[j*2+2]));
+							task.dst_Lout.resize(task.dst_info[labelSize*2+1]);
+							for (int j = 0; j < task.dst_info[labelSize*2+1]; ++j) task.dst_Lout[j] = (make_pair(task.dst_info[j*2+2*labelSize+2], task.dst_info[j*2+2*labelSize+3]));
+							task.dst_topologicalLevel = task.dst_info[labelSize*4+2];
+							task.dst_timeLabel = task.dst_info[labelSize*4+3];
+							
+							//superstep??
+							task.active.clear();
+							task_init();
+							task.visit = 0;
+							task.superstep = task.maxSuperstep;
+							task.restart = 1;
+							task.clearBits();
+							++qit;
+							continue;
+						}
+						else
+						{
+							//stop: <0 cannot visit  >0 can visit
+							
+							bool fastestStop = 0;
+							if (_my_rank == task.srcWorker)
+							{
+								task.rsrc --;
+								if (task.lsrc > task.rsrc) fastestStop = 1;
+								sendBcast(fastestStop, task.srcWorker);
+								
+								//cout << task.lsrc << " " << task.rsrc << endl;
+							}
+							else
+							{
+								receiveBcast(fastestStop, task.dstWorker);
+							}
+							
+							
+							if (!fastestStop)
+							{
+								task.active.clear();
+								task_init();
+								task.visit = 0;
+								task.superstep = task.maxSuperstep;
+								task.restart = 1;
+								task.clearBits();
+								task.roundNum = 0;
+								++qit;
+								
+								if (_my_rank == task.dstWorker)
+								{
+									int dst = task.query[2];
+									int pos = get_vpos(dst);
+									assert(pos != -1); //assert
+									VertexOLT* v=vertexes[pos];
+									
+									int t1, t2;
+									t1 = 0; t2 = inf;
+									if (task.query.size() == 5) {t1 = task.query[3]; t2 = task.query[4]; }
+									map<int,int>::iterator it, it0;
+									it0 = (v->mIn).lower_bound(t1);  //l
+									it = (v->mIn).upper_bound(t2);   //r
+									if (task.ans == -1)
+									{
+										if (it == (v->mIn).begin() || it0 == (v->mIn).end()) //check whether In is empty
+										{
+											task.dst_info[0] = -1;
+											task.l = -1;
+											task.r = -2;
+										}
+										else
+										{
+											it--;
+											int idx = it->second; int idx0 = it0->second;
+											if (idx0 <= idx){
+												task.l = idx0;
+												task.r = idx;
+											}
+											else
+											{
+												task.l = -1;
+												task.r = -2;
+												task.dst_info[0] = -1;
+											}
+										}
+									}
+									else
+									{
+										task.l = it0->second;
+										task.r = task.ans - 1; //task.r can shrink
+									}
+									task.m = (task.l+task.r)/2;
+									if (task.m >= 0){		
+										int idx = task.m;
+										task.dst_info[0] = (v->LinIn)[idx].size();
+										for (int j = 0; j < task.dst_info[0]; ++ j) 
+										{task.dst_info[2*j+1] = (v->LinIn)[idx][j].first ;task.dst_info[2*j+2] = (v->LinIn)[idx][j].second;}
+					
+										task.dst_info[2*labelSize+1] = (v->LoutIn)[idx].size();
+										for (int j = 0; j < task.dst_info[2*labelSize+1]; ++ j) 
+										{task.dst_info[j*2+2*labelSize+2] = (v->LoutIn)[idx][j].first;task.dst_info[j*2+2*labelSize+3] = (v->LoutIn)[idx][j].second;}
+										task.dst_info[labelSize*4+2] = (v->topologicalLevelIn)[idx];
+										task.dst_info[labelSize*4+3] = v->Vin[idx];
+										
+										sendBcast(task.dst_info, task.dstWorker);	
+									}
+									
+									cout << "stop: " << stop << endl;
+									cout << "task.m " << task.m << " " << v->Vin[task.m] << endl;
+									cout << "task.ans " << task.ans << endl;
+									cout << "task.l task.r: " << task.l << " " << task.r << endl;
+									cout << "task.r: " << v->Vin[task.r] << endl;
+									cout << "task.lsrc task.rsrc: " << task.lsrc << " " << task.rsrc << endl; 
+									task.ans = -1;
+								}
+								else receiveBcast(task.dst_info, task.dstWorker);
+								
+								if (task.dst_info[0] != -1)
+								{
+					
+									task.dst_Lin.resize(task.dst_info[0]);
+									for (int j = 0; j < task.dst_info[0]; ++j) task.dst_Lin[j] = (make_pair(task.dst_info[j*2+1], task.dst_info[j*2+2]));
+									task.dst_Lout.resize(task.dst_info[labelSize*2+1]);
+									for (int j = 0; j < task.dst_info[labelSize*2+1]; ++j) task.dst_Lout[j] = (make_pair(task.dst_info[j*2+2*labelSize+2], task.dst_info[j*2+2*labelSize+3]));
+									task.dst_topologicalLevel = task.dst_info[labelSize*4+2];
+									task.dst_timeLabel = task.dst_info[labelSize*4+3];
+					
+								}
+								
+								continue;
+							}
+							else {}
+							
+						}
+					}
+							
 					
 					//dump query result
 					strcpy(outpath, output_folder);
@@ -439,13 +670,24 @@ class WorkerOL {
 			//cout << "queryContainer: " << endl;
 			//cout << queryContainer.size() << endl;
 			//for (int i = 0; i < queryContainer.size(); ++ i) cout << queryContainer[i] << endl;
-			if (queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY || queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN || queryContainer[0] == EARLIEST_QUERY_TOPCHAIN)
+			if (queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY 
+			|| queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
+			|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
+			|| queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY || queryContainer[0] == LATEST_QUERY)
 			{
 				//get neighbors: 1/2, v, (t1,t2)
 				//reachability: 3/4, src, dst, (t1, t2)
 				int src = queryContainer[1];
 				int pos = get_vpos(src);
 				if (pos != -1) activate(pos);
+			}
+			
+			//useCombiner
+			if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
+			|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
+			|| queryContainer[0] == EARLIEST_QUERY /*|| queryContainer[0] == FASTEST_QUERY*/ /*|| queryContainer[0] == SHORTEST_QUERY*/ || queryContainer[0] == LATEST_QUERY) {
+				TaskT& task=*(TaskT*)query_entry();
+				task.useCombiner = 1;
 			}
 		}
 
@@ -705,7 +947,7 @@ class WorkerOL {
 			for (int i = 0; i < new_queries.size(); ++ i)
 			{
 				qinfo& info = new_queries[i];
-				if (info.q[0] != REACHABILITY_QUERY_TOPCHAIN && info.q[0] != EARLIEST_QUERY_TOPCHAIN) continue; //do not need to use topChain
+				if (info.q[0] != REACHABILITY_QUERY_TOPCHAIN && info.q[0] != EARLIEST_QUERY_TOPCHAIN && info.q[0] != FASTEST_QUERY_TOPCHAIN) continue; //do not need to use topChain
 				TaskT& task = queries[info.qid];
 				//set query environment
 				set_qid(info.qid);
@@ -716,7 +958,7 @@ class WorkerOL {
 				int dst = queryContainer[2]; //queryType: 3, src, dst,
 				int pos = get_vpos(dst);
 				//message type
-				task.dst_info.resize(labelSize*4+3);
+				task.dst_info.resize(labelSize*4+3 + 1);
 				// in:(int,int)... out:(int,int)... topologicalLevel
 				if (pos != -1)
 				{
@@ -745,7 +987,8 @@ class WorkerOL {
 							task.r = idx;
 							task.m = (task.l+task.r)/2;
 							//cout << "l r: " << task.l << " " << task.r << endl; 
-							if (queryContainer[0] == EARLIEST_QUERY_TOPCHAIN) idx = (idx+idx0)/2;
+							if (queryContainer[0] == EARLIEST_QUERY_TOPCHAIN
+							|| queryContainer[0] == FASTEST_QUERY_TOPCHAIN) idx = (idx+idx0)/2;
 							//cout << "idx: " << idx << endl;
 							task.dst_info[0] = (v->LinIn)[idx].size();
 							for (int j = 0; j < task.dst_info[0]; ++ j) 
@@ -755,6 +998,8 @@ class WorkerOL {
 							for (int j = 0; j < task.dst_info[2*labelSize+1]; ++ j) 
 							{task.dst_info[j*2+2*labelSize+2] = (v->LoutIn)[idx][j].first;task.dst_info[j*2+2*labelSize+3] = (v->LoutIn)[idx][j].second;}
 							task.dst_info[labelSize*4+2] = (v->topologicalLevelIn)[idx];
+							
+							task.dst_info[labelSize*4+3] = v->Vin[idx]; //time label
 						}
 						else 
 						{
@@ -814,7 +1059,7 @@ class WorkerOL {
 					task.dst_Lout.resize(task.dst_info[labelSize*2+1]);
 					for (int j = 0; j < task.dst_info[labelSize*2+1]; ++j) task.dst_Lout[j] = (make_pair(task.dst_info[j*2+2*labelSize+2], task.dst_info[j*2+2*labelSize+3]));
 					task.dst_topologicalLevel = task.dst_info[labelSize*4+2];
-					
+					task.dst_timeLabel = task.dst_info[labelSize*4+3];
 				}
 				/*
 				cout << "------" << endl;
@@ -827,6 +1072,67 @@ class WorkerOL {
 				for (int j = 0; j < task.dst_Lout.size(); ++ j) cout << task.dst_Lout[j].first << " " << task.dst_Lout[j].second << endl;
 				cout << "topologicalLevel: " << task.dst_topologicalLevel << endl;
 				*/
+				
+				
+				//get srcWorker for fastest query
+				if (info.q[0] == FASTEST_QUERY_TOPCHAIN) {
+					int srcWorker;
+					QueryT& queryContainer = *get_query();
+					int src = queryContainer[1]; // src;
+					int pos = get_vpos(src);
+					if (pos != -1)
+					{
+						VertexOLT* v = vertexes[pos];
+						int t1, t2;
+						t1 = 0; t2 = inf;
+						if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+						map<int, int>::iterator it, it0;
+						it0 = (v->mOut).lower_bound(t1);
+						it = (v->mOut).upper_bound(t2);
+						if (it == (v->mOut).begin() || it0 == (v->mOut).end())
+						{
+							task.lsrc = -1;
+							task.rsrc = -2;
+						}
+						else
+						{
+							it --;
+							int idx = it->second;
+							int idx0 = it0->second;
+							if (idx0 <= idx)
+							{
+								task.lsrc = idx0;
+								task.rsrc = idx;
+							}
+							else 
+							{
+								task.lsrc = -1;
+								task.rsrc = -2;
+							}
+						}
+					}
+					if (_my_rank == MASTER_RANK)
+					{
+						vector<int> workerInfo(_num_workers);
+						masterGather(workerInfo);
+						srcWorker = MASTER_RANK;
+						for (int i = 0; i < workerInfo.size(); ++ i)
+						{
+							if (i != _my_rank && workerInfo[i] != -1) {srcWorker = workerInfo[i];break;}
+						}
+						masterBcast(srcWorker);
+					}
+					else
+					{
+						int toSend;
+						if (pos == -1) toSend = -1;
+						else toSend = _my_rank;
+					
+						slaveGather(toSend);
+						slaveBcast(srcWorker);
+					}
+					task.srcWorker = srcWorker;
+				}
 			}
 			//cout << _my_rank << " bcast done" << endl;
 		}
@@ -992,7 +1298,7 @@ class WorkerOL {
 					queries.erase(qit++);
 					break;
 				}
-				message_buffer->combine();
+				//message_buffer->combine();
 				message_buffer->sync_messages();
 				//--------------------------------
 				worker_barrier();

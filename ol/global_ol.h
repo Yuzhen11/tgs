@@ -62,11 +62,18 @@ inline void set_query_entry(void* q)
 
 //queryNotation:
 #define PRECOMPUTE 0
+//online query
 #define OUT_NEIGHBORS_QUERY 1
 #define IN_NEIGHBORS_QUERY 2
 #define REACHABILITY_QUERY 3
 #define REACHABILITY_QUERY_TOPCHAIN 4
 #define EARLIEST_QUERY_TOPCHAIN 5
+#define FASTEST_QUERY_TOPCHAIN 6
+//analytic query
+#define EARLIEST_QUERY 7
+#define FASTEST_QUERY 8
+#define SHORTEST_QUERY 9
+#define LATEST_QUERY 10
 
 #define labelSize 2
 const int inf = 1e9;

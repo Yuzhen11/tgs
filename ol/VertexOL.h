@@ -222,6 +222,11 @@ class VertexOL {
 			TaskT& task=*(TaskT*)query_entry();
 			return task.restart;
 		}
+		static int getrsrc()
+		{
+			TaskT& task=*(TaskT*)query_entry();
+			return task.rsrc;
+		}
 
 		static void* get_agg()
 		{
