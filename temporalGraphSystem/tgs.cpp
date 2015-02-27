@@ -713,6 +713,20 @@ public:
 		{
 			if (superstep() == 1)
 			{
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					LtinIn[i].clear();
+					//LtoutIn[i].clear();
+					LcinIn[i].clear();
+					LcoutIn[i].clear();
+				}
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					//LtinOut[i].clear();
+					LtoutOut[i].clear();
+					LcinOut[i].clear();
+					LcoutOut[i].clear();
+				}
 				/*
 				cout << "id: " << id << endl;
 				cout << "Vin" << endl;
@@ -1406,6 +1420,373 @@ void temporalVertex::compute(MessageContainer& messages)
 						}
 					}
 				}
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == ADDEDGE) // 11, u, v, t, w
+	{
+		if (superstep() == 1)
+		{
+			if (id == queryContainer[1]) //src
+			{
+				if (Vout.size() == 0 || Vout[Vout.size()-1] < queryContainer[3]) //new Vout
+				{
+					int cur = Vout.size();
+					
+					Vout.push_back(queryContainer[3]);
+					VoutNeighbors.resize(Vout.size());
+					VoutNeighbors[cur].push_back(vw{queryContainer[2], queryContainer[4]});
+					LinOut.resize(Vout.size());
+					LoutOut.resize(Vout.size());
+					LcinOut.resize(Vout.size());
+					LcoutOut.resize(Vout.size());
+					LtoutOut.resize(Vout.size());
+					topologicalLevelOut.resize(Vout.size());
+					toIn.resize(Vout.size());
+					toIn[cur] = -1;
+					mOut[queryContainer[3]] = cur;
+					LoutOut[cur].push_back(make_pair(id, queryContainer[3]));
+					LinOut[cur].push_back(make_pair(id, queryContainer[3]));
+
+					std::map<int,int>::iterator it = mIn.upper_bound(queryContainer[3]);
+					if (it != mIn.begin())
+					{
+						it--;
+						int p = it->second;
+						if (toOut[p] == -1) {toOut[p] = cur; toIn[cur] = p;}
+					}
+					if (toIn[cur] == -1)
+					{
+						if (cur == 0)
+						{
+							topologicalLevelOut[cur] = 0;
+							;
+						}
+						else
+						{
+							topologicalLevelOut[cur] = topologicalLevelOut[cur-1]+1;
+							vector<pair<int,int> > tmp, tmp2;
+							mergeIn(LinOut[cur], LinOut[cur-1], tmp, tmp2, labelSize);
+						}
+					}
+					else
+					{
+						if (cur == 0)
+						{
+							topologicalLevelOut[cur] = topologicalLevelIn[toIn[cur]]+1;
+							vector<pair<int,int> > tmp, tmp2;
+							mergeIn(LinOut[cur], LinIn[toIn[cur]], tmp, tmp2, labelSize);
+						}
+						else
+						{
+							vector<pair<int,int> > tmp;
+							topologicalLevelOut[cur] = max(topologicalLevelIn[toIn[cur]],topologicalLevelOut[cur-1])+1;
+							mergeIn(LinOut[cur], LinOut[cur-1], LinIn[toIn[cur]], tmp ,labelSize);
+						}
+					}
+					/*
+					cout << "topo" << endl;
+					cout << topologicalLevelOut[cur] << endl;
+					cout << "inLabel" << endl;
+					for (int i = 0; i < LinOut[cur].size(); ++ i) cout << LinOut[cur][i].first << " " << LinOut[cur][i].second << endl;
+					*/
+				}
+				else if (Vout[Vout.size()-1] == queryContainer[3])
+				{
+					VoutNeighbors[Vout.size()-1].push_back(vw{queryContainer[2], queryContainer[4]});
+				}
+				else assert(0);
+				
+				//send in-label to dst
+				int cur = Vout.size()-1;
+				vector<int> send;
+				//send.push_back(LinOut[cur].size());
+				for (int i = 0; i < LinOut[cur].size(); ++ i) {send.push_back(LinOut[cur][i].first); send.push_back(LinOut[cur][i].second);}
+				send.push_back(topologicalLevelOut[cur]);
+				send_message(queryContainer[2], send);
+			}
+			if (id == queryContainer[2])
+			{
+				int arrivalT = queryContainer[3]+queryContainer[4];
+				if (Vin.size() == 0 || Vin[Vin.size()-1] < queryContainer[3]+queryContainer[4])
+				{
+					int cur = Vin.size();
+					Vin.push_back(arrivalT);
+					VinNeighbors.resize(Vin.size());
+					VinNeighbors[cur].push_back(vw{queryContainer[1], queryContainer[4]});
+					LinIn.resize(Vin.size());
+					LoutIn.resize(Vin.size());
+					LcinIn.resize(Vin.size());
+					LcoutIn.resize(Vin.size());
+					LtinIn.resize(Vin.size());
+					topologicalLevelIn.resize(Vin.size());
+					toOut.resize(Vin.size());
+					toOut[cur] = -1;
+					mIn[arrivalT] = cur;
+					
+					/*
+					std::map<int,int>::iterator it = mOut.lower_bound(arrivalT);
+					if (it != mOut.end())
+					{
+						int p = it->second;
+						if (toIn[p] != -1)
+						{
+							int p2 = toIn[p];
+							toOut[p2] = -1;
+						}
+						toIn[p] = cur;
+						toOut[cur] = p;
+					}
+					if (toOut[cur]!=-1) LoutIn[cur] = LoutOut[toOut[cur]];
+					else LoutIn[cur].push_back(make_pair(id, arrivalT));
+					*/
+					LoutIn[cur].push_back(make_pair(id, arrivalT));
+					LinIn[cur].push_back(make_pair(id, arrivalT));
+					topologicalLevelIn[cur] = cur==0?0:topologicalLevelOut[cur-1]+1;
+					/*
+					cout << "outLabel" << endl;
+					for (int i = 0; i < LoutIn[cur].size(); ++ i) cout << LoutIn[cur][i].first << " " << LoutIn[cur][i].second << endl;
+					*/
+				}
+				else if (Vin[Vin.size()-1] == arrivalT)
+				{
+					VinNeighbors[Vin.size()-1].push_back(vw{queryContainer[2], queryContainer[4]});
+				}
+				else assert(0);
+				
+				//send messages
+				int cur = Vin.size()-1;
+				vector<int> send;
+				//send.push_back(LoutIn[cur].size());
+				for (int i = 0; i < LoutIn[cur].size(); ++ i) {send.push_back(LoutIn[cur][i].first); send.push_back(LoutIn[cur][i].second);}
+				send_message(queryContainer[1], send);
+			}
+		}
+		else if (superstep() == 2)
+		{
+			if (id == queryContainer[1])
+			{
+				//clear Lt, Lc
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					//LtinIn[i].clear();
+					//LtoutIn[i].clear();
+					//LcinIn[i].clear();
+					LcoutIn[i].clear();
+				}
+				for (int i = 0; i < Vout.size(); ++ i)
+				{
+					//LtinOut[i].clear();
+					LtoutOut[i].clear();
+					//LcinOut[i].clear();
+					LcoutOut[i].clear();
+				}
+				
+				int cur = Vout.size()-1;
+				for (int i = 0; i < messages[0].size(); i += 2)
+				{
+					LtoutOut[cur].push_back(make_pair(messages[0][i], messages[0][i+1]));
+				}
+				
+				//reverse topological order
+				int p1 = Vin.size()-1;
+				int p2 = Vout.size()-1;
+				while(p1>=0||p2>=0)
+				{
+					if (p1 < 0 || (p2>=0&&Vin[p1] <= Vout[p2]))
+					{
+						//visit Vout[p2], then p2--
+						//merge LoutOut[p2] with LtoutOut[p2] and potentially LcoutOut[p2+1]
+						if (p2 == Vout.size()-1)
+						{
+							vector<pair<int,int> > tmp;
+							mergeOut(LoutOut[p2], tmp, LtoutOut[p2], LcoutOut[p2], labelSize);
+						}
+						else mergeOut(LoutOut[p2], LcoutOut[p2+1], LtoutOut[p2], LcoutOut[p2], labelSize);
+						
+						p2--;
+					}
+					else if (p2 < 0 || Vin[p1] > Vout[p2])
+					{
+						//visit Vin[p1], then p1 --
+						if (p1 == Vin.size()-1)
+						{
+							vector<pair<int,int> > tmp;//,tmp2;
+							if (toOut[p1] == -1) ;//mergeOut(LoutIn[p1], tmp, tmp2, LcoutIn[p1], labelSize);
+							else mergeOut(LoutIn[p1], tmp, LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+						}
+						else
+						{
+							if (toOut[p1] == -1 )
+							{
+								vector<pair<int,int> > tmp;
+								mergeOut(LoutIn[p1], LcoutIn[p1+1], tmp, LcoutIn[p1], labelSize);
+							}
+							else mergeOut(LoutIn[p1], LcoutIn[p1+1], LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+						}
+						p1--;
+					}
+				}
+				
+				//send messages
+				vector<int> send(3);
+				for (int i = 0; i < Vin.size(); ++ i)
+				{
+					if (LcoutIn[i].size() > 0)
+					{
+						for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+						{
+							send[0] = Vin[i]-VinNeighbors[i][j].w;
+							for (int k = 0; k < LcoutIn[i].size(); ++ k)
+							{
+								send[1] = LcoutIn[i][k].first;
+								send[2] = LcoutIn[i][k].second;
+								send_message(VinNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
+			}
+			if (id == queryContainer[2])
+			{
+				int cur = Vin.size()-1;
+				vector<pair<int,int> > tmp;
+				for (int i = 0; i < messages[0].size()-1; i += 2)
+				{
+					tmp.push_back(make_pair(messages[0][i], messages[0][i+1]));
+				}
+				topologicalLevelIn[cur] = max(messages[0][messages[0].size()-1]+1, topologicalLevelIn[cur]);
+				
+				if (cur == 0) 
+				{
+					vector<pair<int,int> > tmp2,tmp3;
+					mergeIn(LinIn[cur], tmp, tmp2, tmp3, labelSize);
+				}
+				else {
+					vector<pair<int,int> > tmp2;
+					mergeIn(LinIn[cur], tmp, LinIn[cur-1], tmp2, labelSize);
+				}
+			}
+		}
+		else
+		{
+			//clear Lt, Lc
+			for (int i = 0; i < Vin.size(); ++ i)
+			{
+				//LtinIn[i].clear();
+				//LtoutIn[i].clear();
+				//LcinIn[i].clear();
+				LcoutIn[i].clear();
+			}
+			for (int i = 0; i < Vout.size(); ++ i)
+			{
+				//LtinOut[i].clear();
+				LtoutOut[i].clear();
+				//LcinOut[i].clear();
+				LcoutOut[i].clear();
+			}
+			for (int i = 0; i < messages.size(); ++ i) //receive messages and save in Lt
+			{
+				vector<int>& msg = messages[i];
+				
+				if (msg[0] >= 0) //out-label
+				{
+					LtoutOut[mOut[msg[0]]].push_back(make_pair(msg[1], msg[2]));
+				}
+				else if (msg[0] < 0) //in-label
+				{
+					LtinIn[mIn[-msg[0]]].push_back(make_pair(msg[1], msg[2]));
+				}
+			}
+			//for (int i = 0; i < Vin.size(); ++ i) sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
+			for (int i = 0; i < Vout.size(); ++ i) sort(LtoutOut[i].begin(), LtoutOut[i].end());
+			
+			//reverse topological order
+			int p1 = Vin.size()-1;
+			int p2 = Vout.size()-1;
+			while(p1>=0||p2>=0)
+			{
+				if (p1 < 0 || (p2>=0&&Vin[p1] <= Vout[p2]))
+				{
+					//visit Vout[p2], then p2--
+					//merge LoutOut[p2] with LtoutOut[p2] and potentially LcoutOut[p2+1]
+					if (p2 == Vout.size()-1)
+					{
+						vector<pair<int,int> > tmp;
+						mergeOut(LoutOut[p2], tmp, LtoutOut[p2], LcoutOut[p2], labelSize);
+					}
+					else mergeOut(LoutOut[p2], LcoutOut[p2+1], LtoutOut[p2], LcoutOut[p2], labelSize);
+					
+					p2--;
+				}
+				else if (p2 < 0 || Vin[p1] > Vout[p2])
+				{
+					//visit Vin[p1], then p1 --
+					if (p1 == Vin.size()-1)
+					{
+						vector<pair<int,int> > tmp;//,tmp2;
+						if (toOut[p1] == -1) ;//mergeOut(LoutIn[p1], tmp, tmp2, LcoutIn[p1], labelSize);
+						else mergeOut(LoutIn[p1], tmp, LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+					}
+					else
+					{
+						if (toOut[p1] == -1 )
+						{
+							vector<pair<int,int> > tmp;
+							mergeOut(LoutIn[p1], LcoutIn[p1+1], tmp, LcoutIn[p1], labelSize);
+						}
+						else mergeOut(LoutIn[p1], LcoutIn[p1+1], LcoutOut[toOut[p1]], LcoutIn[p1], labelSize);
+					}
+					p1--;
+				}
+			}
+			
+			//send messages
+			vector<int> send(3);
+			for (int i = 0; i < Vin.size(); ++ i)
+			{
+				if (LcoutIn[i].size() > 0)
+				{
+					for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+					{
+						send[0] = Vin[i]-VinNeighbors[i][j].w;
+						for (int k = 0; k < LcoutIn[i].size(); ++ k)
+						{
+							send[1] = LcoutIn[i][k].first;
+							send[2] = LcoutIn[i][k].second;
+							send_message(VinNeighbors[i][j].v, send);
+						}
+					}
+				}
+			}
+		}
+		vote_to_halt();
+	}
+	
+	
+	else if (queryContainer[0] == TEST)
+	{
+		if (superstep() == 1)
+		{
+			cout << "id: " << id << endl;
+			for (int i = 0; i < Vin.size(); ++ i)
+			{
+				cout << Vin[i] << ":\n";
+				cout << "topo: " << topologicalLevelIn[i] << endl;
+				for (int j = 0; j < LinIn[i].size(); ++ j) cout << "(" << LinIn[i][j].first << ", " << LinIn[i][j].second << ") ";
+				cout << endl;
+				for (int j = 0; j < LoutIn[i].size(); ++ j) cout << "(" << LoutIn[i][j].first << ", " << LoutIn[i][j].second << ") ";
+				cout << endl;
+			}
+			for (int i = 0; i < Vout.size(); ++ i)
+			{
+				cout << Vout[i] << ":\n";
+				cout << "topo: " << topologicalLevelOut[i] << endl;
+				for (int j = 0; j < LinOut[i].size(); ++ j) cout << "(" << LinOut[i][j].first << ", " << LinOut[i][j].second << ") ";
+				cout << endl;
+				for (int j = 0; j < LoutOut[i].size(); ++ j) cout << "(" << LoutOut[i][j].first << ", " << LoutOut[i][j].second << ") ";
+				cout << endl;
 			}
 		}
 		vote_to_halt();

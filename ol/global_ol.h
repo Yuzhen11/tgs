@@ -74,7 +74,10 @@ inline void set_query_entry(void* q)
 #define FASTEST_QUERY 8
 #define SHORTEST_QUERY 9
 #define LATEST_QUERY 10
-
+//update
+#define ADDEDGE 11
+//test
+#define TEST -1
 #define labelSize 2
 const int inf = 1e9;
 #endif

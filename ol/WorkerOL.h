@@ -245,20 +245,22 @@ class WorkerOL {
 							cout << task.ans << endl;
 							cout << "superstep " << task.maxSuperstep << endl;
 							*/
-							
-							if (task.visit)
-							{
-								task.r = task.m-1;
-								task.ans = task.m;
-								if (task.l > task.r) {stop = 1;}
-								else task.m = (task.l+task.r)/2;
-							}
-							else
-							{
-								//cannot visit
-								task.l = task.m+1;
-								if (task.l > task.r) {stop = 1;}
-								else task.m = (task.l+task.r)/2;	
+							if (task.l < 0) stop = 1;
+							else{
+								if (task.visit)
+								{
+									task.r = task.m-1;
+									task.ans = task.m;
+									if (task.l > task.r) {stop = 1;}
+									else task.m = (task.l+task.r)/2;
+								}
+								else
+								{
+									//cannot visit
+									task.l = task.m+1;
+									if (task.l > task.r) {stop = 1;}
+									else task.m = (task.l+task.r)/2;	
+								}
 							}
 							/*
 							cout << "test information" << endl;
@@ -680,6 +682,22 @@ class WorkerOL {
 				int src = queryContainer[1];
 				int pos = get_vpos(src);
 				if (pos != -1) activate(pos);
+			}
+			if (queryContainer[0] == ADDEDGE)
+			{
+				int src = queryContainer[1];
+				int dst = queryContainer[2];
+				int pos = get_vpos(src);
+				if (pos != -1) activate(pos);
+				pos = get_vpos(dst);
+				if (pos != -1) activate(pos);
+			}
+			if (queryContainer[0] == TEST)
+			{
+				for (int i = 0; i < vertexes.size(); ++ i)
+				{
+					activate(get_vpos(vertexes[i]->id));
+				}
 			}
 			
 			//useCombiner
