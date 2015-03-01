@@ -105,12 +105,13 @@ public:
         vector<int> ret;
         if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
         || queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
-        || queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY)
+        || queryContainer[0] == EARLIEST_QUERY  || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY)
         {
         	//if (Vout.size() > 0) ret.push_back(Vout[Vout.size()-1]+1); //lastT
         	//else ret.push_back(-1);
         	ret.push_back(inf);
         }
+        if (queryContainer[0] == LATEST_QUERY) ret.push_back(0);
         
         if (queryContainer[0] == FASTEST_QUERY) {latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), -1);}
         else if (queryContainer[0] == SHORTEST_QUERY) {latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), inf);}
@@ -254,8 +255,6 @@ public:
 			
 		}
 		
-		
-		
 		for (int i = 0; i < Vout.size(); ++ i)
 		{
 			tmp = Vout[i];
@@ -377,7 +376,7 @@ public:
 				}
 				
 				//build neighbors done
-				printTransformInfo();
+				//printTransformInfo();
 				
 				
 				vote_to_halt();
@@ -1272,6 +1271,57 @@ void temporalVertex::compute(MessageContainer& messages)
 		}
 		vote_to_halt();
 	}
+	else if (queryContainer[0] == LATEST_QUERY) //analytic query
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 4) {t1 = queryContainer[2]; t2 = queryContainer[3];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mIn.lower_bound(t1);
+			it2 = mIn.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it != mIn.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VinNeighbors[idx].size(); ++ j)
+				{
+					send[0] = -(Vin[idx] - VinNeighbors[idx][j].w);
+					send_message(VinNeighbors[idx][j].v, send);
+				}
+			}
+		}
+		else
+		{
+			int maxi = 0;
+			int& lastT = qvalue()[0];
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (-messages[i][0] > maxi) maxi = -messages[i][0];
+			}
+			if (maxi > lastT)
+			{
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mIn.upper_bound(max(t1,lastT));
+				start = it->second;
+				end = maxi;
+				vector<int> send(1);
+				for (int i = start; i < Vin.size() && Vin[i] <= end; ++ i)
+				{
+					for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+					{
+						send[0] = -(Vin[i] - VinNeighbors[i][j].w);
+						send_message(VinNeighbors[i][j].v, send);
+					}
+				}
+				lastT = maxi;
+			}
+		}
+		vote_to_halt();
+	}
 	else if (queryContainer[0] == FASTEST_QUERY) //analytic query
 	{
 		int t1 = 0; int t2 = inf;
@@ -1842,7 +1892,7 @@ public:
 	virtual void dump(temporalVertex* vertex, BufferedWriter& writer)
 	{
 		TaskT& task=*(TaskT*)query_entry();
-		if (task.query[0] == EARLIEST_QUERY || task.query[0] == FASTEST_QUERY || task.query[0] == SHORTEST_QUERY)
+		if (task.query[0] == EARLIEST_QUERY || task.query[0] == LATEST_QUERY ||task.query[0] == FASTEST_QUERY || task.query[0] == SHORTEST_QUERY)
 		{
 			if (vertex->id == task.query[1]) cout << vertex->id << " " << 0 << endl;
 			else cout << vertex->id << " " << vertex->qvalue()[0] << endl;
