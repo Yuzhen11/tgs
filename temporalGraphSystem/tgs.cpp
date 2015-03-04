@@ -91,6 +91,7 @@ public:
 	
 	//fastest path query
 	vector<int> latestArrivalTime;
+	vector<int> lastOut;
 
 	//Step 5.1: define UDF1: query -> vertex's query-specific init state
     virtual vector<int> init_value(vector<int>& query) //QValueT init_value(QueryT& query
@@ -113,8 +114,16 @@ public:
         }
         if (queryContainer[0] == LATEST_QUERY) ret.push_back(0);
         
-        if (queryContainer[0] == FASTEST_QUERY) {latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), -1);}
-        else if (queryContainer[0] == SHORTEST_QUERY) {latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), inf);}
+        if (queryContainer[0] == FASTEST_QUERY) 
+        {
+        	latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), -1);
+        	lastOut.resize(0); lastOut.resize(Vout.size(), -1);
+        }
+        else if (queryContainer[0] == SHORTEST_QUERY) 
+        {
+        	latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), inf);
+        	lastOut.resize(0); lastOut.resize(Vout.size(), inf);
+        }
         
         
         return ret;
@@ -816,7 +825,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1)
 		{
-			cout << "starting vertex: " << id << endl;
+			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -891,7 +900,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1)
 		{
-			cout << "starting vertex: " << id << endl;
+			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -1003,7 +1012,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1 || restart() )
 		{
-			cout << "starting vertex: " << id << endl;
+			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -1118,7 +1127,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1 || restart() )
 		{
-			cout << "starting vertex: " << id << endl;
+			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -1255,15 +1264,17 @@ void temporalVertex::compute(MessageContainer& messages)
 				std::map<int,int>::iterator it;
 				int start, end;
 				it = mOut.lower_bound(mini);
-				start = it->second;
-				end = min(lastT, t2);
-				vector<int> send(1);
-				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
-				{
-					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+				if (it != mOut.end()) {
+					start = it->second;
+					end = min(lastT, t2);
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
 					{
-						send[0] = Vout[i] + VoutNeighbors[i][j].w;
-						send_message(VoutNeighbors[i][j].v, send);
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = Vout[i] + VoutNeighbors[i][j].w;
+							send_message(VoutNeighbors[i][j].v, send);
+						}
 					}
 				}
 				lastT = mini;
@@ -1271,6 +1282,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		}
 		vote_to_halt();
 	}
+	/*
 	else if (queryContainer[0] == LATEST_QUERY) //analytic query
 	{
 		int t1 = 0; int t2 = inf;
@@ -1306,15 +1318,73 @@ void temporalVertex::compute(MessageContainer& messages)
 				std::map<int,int>::iterator it;
 				int start, end;
 				it = mIn.upper_bound(max(t1,lastT));
-				start = it->second;
-				end = maxi;
-				vector<int> send(1);
-				for (int i = start; i < Vin.size() && Vin[i] <= end; ++ i)
+				if (it != mIn.end())
 				{
-					for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+					start = it->second;
+					end = maxi;
+					vector<int> send(1);
+					for (int i = start; i < Vin.size() && Vin[i] <= end; ++ i)
 					{
-						send[0] = -(Vin[i] - VinNeighbors[i][j].w);
-						send_message(VinNeighbors[i][j].v, send);
+						for (int j = 0; j < VinNeighbors[i].size(); ++ j)
+						{
+							send[0] = -(Vin[i] - VinNeighbors[i][j].w);
+							send_message(VinNeighbors[i][j].v, send);
+						}
+					}
+				}
+				lastT = maxi;
+			}
+		}
+		vote_to_halt();
+	}
+	*/
+	else if (queryContainer[0] == LATEST_QUERY) //analytic query
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 4) {t1 = queryContainer[2]; t2 = queryContainer[3];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = -(Vout[idx] - VoutNeighbors[idx][j].w);
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+		}
+		else
+		{
+			int maxi = 0;
+			int& lastT = qvalue()[0];
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (-messages[i][0] > maxi) maxi = -messages[i][0];
+			}
+			if (maxi > lastT)
+			{
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.upper_bound(max(t1,lastT));
+				if (it != mOut.end())
+				{
+					start = it->second;
+					end = maxi;
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] <= end; ++ i)
+					{
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = -(Vout[i] - VoutNeighbors[i][j].w);
+							send_message(VoutNeighbors[i][j].v, send);
+						}
 					}
 				}
 				lastT = maxi;
@@ -1381,16 +1451,20 @@ void temporalVertex::compute(MessageContainer& messages)
 					vector<int> send(2);
 					for (int i = start; i < Vout.size() && Vout[i] < t2; ++ i)
 					{
-						while(pt < changed.size() && Vin[changed[pt]] < Vout[i]) 
+						while(pt < changed.size() && Vin[changed[pt]] <= Vout[i]) 
 						{
 							shouldSend = max(shouldSend, latestArrivalTime[changed[pt]]);
 							pt++;
 						}
-						send[1] = shouldSend;
-						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						if (shouldSend > lastOut[i])
 						{
-							send[0] = Vout[i] + VoutNeighbors[i][j].w;
-							send_message(VoutNeighbors[i][j].v, send);
+							lastOut[i] = shouldSend;
+							send[1] = shouldSend;
+							for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+							{
+								send[0] = Vout[i] + VoutNeighbors[i][j].w;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
 						}
 					}
 				}
@@ -1457,16 +1531,20 @@ void temporalVertex::compute(MessageContainer& messages)
 					vector<int> send(2);
 					for (int i = start; i < Vout.size() && Vout[i] < t2; ++ i)
 					{
-						while(pt < changed.size() && Vin[changed[pt]] < Vout[i]) 
+						while(pt < changed.size() && Vin[changed[pt]] <= Vout[i]) 
 						{
 							shouldSend = min(shouldSend, latestArrivalTime[changed[pt]]);
 							pt++;
 						}
-						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						if (shouldSend < lastOut[i])
 						{
-							send[0] = Vout[i] + VoutNeighbors[i][j].w;
-							send[1] = shouldSend + VoutNeighbors[i][j].w;
-							send_message(VoutNeighbors[i][j].v, send);
+							lastOut[i] = shouldSend;
+							for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+							{
+								send[0] = Vout[i] + VoutNeighbors[i][j].w;
+								send[1] = shouldSend + VoutNeighbors[i][j].w;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
 						}
 					}
 				}
@@ -1846,6 +1924,7 @@ void temporalVertex::compute(MessageContainer& messages)
 //define worker class
 class temporalWorker : public WorkerOL<temporalVertex>{
 public:
+	char buf[1000];
 	virtual temporalVertex* toVertex(char* line)
 	{
 		temporalVertex* v = new temporalVertex;
@@ -1894,8 +1973,11 @@ public:
 		TaskT& task=*(TaskT*)query_entry();
 		if (task.query[0] == EARLIEST_QUERY || task.query[0] == LATEST_QUERY ||task.query[0] == FASTEST_QUERY || task.query[0] == SHORTEST_QUERY)
 		{
-			if (vertex->id == task.query[1]) cout << vertex->id << " " << 0 << endl;
-			else cout << vertex->id << " " << vertex->qvalue()[0] << endl;
+			//if (vertex->id == task.query[1]) cout << vertex->id << " " << 0 << endl;
+			//else cout << vertex->id << " " << vertex->qvalue()[0] << endl;
+			if (vertex->id == task.query[1]) sprintf(buf, "%d %d\n", vertex->id, 0);
+			else sprintf(buf, "%d %d\n", vertex->id, vertex->qvalue()[0]);
+			writer.write(buf);
 		}
 	}
 };

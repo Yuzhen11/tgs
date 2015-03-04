@@ -49,6 +49,8 @@ class WorkerOL {
 		Combiner<MessageT>* combiner;
 
 		msg_queue_server* server;
+		msg_queue_notifier* notifier;//ADDED FOR AUTO
+		long type;
 		int nxt_qid;
 		int glob_step;
 
@@ -75,8 +77,13 @@ class WorkerOL {
 			global_message_buffer = message_buffer;
 			combiner = NULL;
 			global_combiner = NULL;
-			if (_my_rank == MASTER_RANK) server=new msg_queue_server;
+			if (_my_rank == MASTER_RANK) 
+			{	
+				server=new msg_queue_server;
+				notifier=new msg_queue_notifier;
+			}
 			nxt_qid=1;
+			type = 1;
 		}
 
 		void setCombiner(Combiner<MessageT>* cb)
@@ -89,7 +96,11 @@ class WorkerOL {
 		{
 			for(int i = 0; i < vertexes.size(); i++) delete vertexes[i];
 			delete message_buffer;
-			if (_my_rank == MASTER_RANK) delete server;
+			if (_my_rank == MASTER_RANK) 
+			{
+				delete server;
+				delete notifier;
+			}
 			worker_finalize();
 		}
 
@@ -582,6 +593,9 @@ class WorkerOL {
 						cout<<"Q"<<qit->first<<" dumped, response time: "<<time<<" seconds, vertex access rate: "<<rate<<endl;
 						cout<<"superstep #: " << task.maxSuperstep << endl;
 						//--------------------------------------------
+						//notifying the client that the query is processed
+						sprintf(outpath, "%d %lf %lf %d", qit->first, time, rate, task.maxSuperstep);
+						notifier->send_msg(type, outpath);
 					}
 					//free the query task
 					if(use_agg)
@@ -675,7 +689,7 @@ class WorkerOL {
 			if (queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY 
 			|| queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
 			|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
-			|| queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY || queryContainer[0] == LATEST_QUERY)
+			|| queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == LATEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY)
 			{
 				//get neighbors: 1/2, v, (t1,t2)
 				//reachability: 3/4, src, dst, (t1, t2)
