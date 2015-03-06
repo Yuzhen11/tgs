@@ -376,12 +376,12 @@ public:
 				for (int i = 0; i < Vin.size(); ++ i)
 				{
 					inDegreeIn[i] = VinNeighbors[i].size()+(i==0?0:1);
-					//cout << inDegreeIn[i] << endl;
+					//cout << id << " " << Vin[i] << " " << inDegreeIn[i] << endl;
 				}
 				for (int i = 0; i < Vout.size(); ++ i)
 				{
 					inDegreeOut[i] = (toIn[i]==-1?0:1) + (i==0?0:1);
-					//cout << inDegreeOut[i] << endl;
+					//cout << id << " " << Vout[i] << " " << inDegreeOut[i] << endl;
 				}
 				
 				//build neighbors done
@@ -449,7 +449,6 @@ public:
 					topologicalLevelIn[in_index] = max(topologicalLevelIn[in_index],inMsg[0]);
 					if (countinDegreeIn[in_index] == inDegreeIn[in_index])
 					{
-						
 						q.push(make_pair(in_index, 0));
 					}
 				}
@@ -462,9 +461,9 @@ public:
 						{
 							int tmp = cur.first+1;
 							countinDegreeIn[tmp] ++;
+							topologicalLevelIn[tmp] = max(topologicalLevelIn[tmp],topologicalLevelIn[cur.first]+1);
 							if (countinDegreeIn[tmp] == inDegreeIn[tmp])
 							{
-								topologicalLevelIn[tmp] = max(topologicalLevelIn[tmp],topologicalLevelIn[cur.first]+1);
 								q.push(make_pair(tmp, 0));
 							}
 						}
@@ -472,9 +471,9 @@ public:
 						if (tmp != -1)
 						{
 							countinDegreeOut[tmp] ++;
+							topologicalLevelOut[tmp] = max(topologicalLevelOut[tmp],topologicalLevelIn[cur.first]+1);
 							if (countinDegreeOut[tmp] == inDegreeOut[tmp])
 							{
-								topologicalLevelOut[tmp] = max(topologicalLevelOut[tmp],topologicalLevelIn[cur.first]+1);
 								q.push(make_pair(tmp,1));
 							}
 						}
@@ -485,9 +484,9 @@ public:
 						{
 							int tmp = cur.first+1;
 							countinDegreeOut[tmp]++;
+							topologicalLevelOut[tmp] = max(topologicalLevelOut[tmp],topologicalLevelOut[cur.first]+1);
 							if (countinDegreeOut[tmp] == inDegreeOut[tmp])
 							{
-								topologicalLevelOut[tmp] = max(topologicalLevelOut[tmp],topologicalLevelOut[cur.first]+1);
 								q.push(make_pair(tmp,1));
 							}
 						}
@@ -825,7 +824,6 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1)
 		{
-			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -840,16 +838,16 @@ void temporalVertex::compute(MessageContainer& messages)
 			it2 = mOut.upper_bound(t2);
 			int idx;
 			vector<int> send(1);
-			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			for (it = it1; it!=it2; ++it)
 			{
 				idx = it->second;
 				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
 				{
-					//cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
 					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			qvalue()[0] = t1;
 		}
 		else
 		{
@@ -861,7 +859,6 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				if (messages[i][0] < mini) mini = messages[i][0];
 			}
-			//cout << "id:" << id << " mini:" << mini << " lastT:" << lastT << endl;
 			if (id == queryContainer[2] && mini <= t2)
 			{
 				//done
@@ -874,15 +871,18 @@ void temporalVertex::compute(MessageContainer& messages)
 				std::map<int,int>::iterator it;
 				int start, end;
 				it = mOut.lower_bound(mini);
-				start = it->second;
-				end = min(lastT, t2);
-				vector<int> send(1);
-				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+				if (it != mOut.end())
 				{
-					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+					start = it->second;
+					end = min(lastT, t2);
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
 					{
-						send[0] = Vout[i] + VoutNeighbors[i][j].w;
-						send_message(VoutNeighbors[i][j].v, send);
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = Vout[i] + VoutNeighbors[i][j].w;
+							send_message(VoutNeighbors[i][j].v, send);
+						}
 					}
 				}
 				//reset lastT
@@ -900,7 +900,6 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1)
 		{
-			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -914,10 +913,9 @@ void temporalVertex::compute(MessageContainer& messages)
 			it2 = mOut.upper_bound(t2);
 			int idx;
 			vector<int> send(1);
-			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			for (it = it1; it!=it2; ++it)
 			{
 				idx = it->second;
-				
 				int ret = labelCompare(idx);
 				if (ret != 0)
 				{
@@ -925,23 +923,21 @@ void temporalVertex::compute(MessageContainer& messages)
 					{
 						send[0] = 0;
 						send_message(queryContainer[2], send);
-						vote_to_halt();
-						return;
+						break;
 					}
 					else if (ret == -1) //cannot visit from this vertex, need to be pruned
 					{
-						vote_to_halt();
-						return;
+						break;
 					}
 				}
 				
 				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
 				{
-					//cout << "(" << VoutNeighbors[idx][j].v << " " << Vout[idx] << " " << VoutNeighbors[idx][j].w << ")"<< endl;
 					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			qvalue()[0] = t1;
 		}
 		else
 		{
@@ -953,7 +949,6 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				if (messages[i][0] < mini) mini = messages[i][0];
 			}
-			//cout << "id:" << id << " mini:" << mini << " lastT:" << lastT << endl;
 			if (id == queryContainer[2] && mini <= t2)
 			{
 				//done
@@ -967,33 +962,32 @@ void temporalVertex::compute(MessageContainer& messages)
 				std::map<int,int>::iterator it;
 				int start, end;
 				it = mOut.lower_bound(mini);
-				start = it->second;
-				end = min(lastT, t2);
-				vector<int> send(1);
-				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+				if (it != mOut.end()) 
 				{
-					
-					int ret = labelCompare(i);
-					if (ret != 0)
+					start = it->second;
+					end = min(lastT, t2);
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
 					{
-						if (ret == 1) //can visit
+						int ret = labelCompare(i);
+						if (ret != 0)
 						{
-							send[0] = 0;
-							send_message(queryContainer[2], send);
-							vote_to_halt();
-							return;
+							if (ret == 1) //can visit
+							{
+								send[0] = 0;
+								send_message(queryContainer[2], send);
+								break;
+							}
+							else if (ret == -1) //cannot visit from this vertex, need to be pruned
+							{
+								break;
+							}
 						}
-						else if (ret == -1) //cannot visit from this vertex, need to be pruned
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
 						{
-							vote_to_halt();
-							return;
+							send[0] = Vout[i] + VoutNeighbors[i][j].w;
+							send_message(VoutNeighbors[i][j].v, send);
 						}
-					}
-					
-					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
-					{
-						send[0] = Vout[i] + VoutNeighbors[i][j].w;
-						send_message(VoutNeighbors[i][j].v, send);
 					}
 				}
 				//reset lastT
@@ -1017,7 +1011,7 @@ void temporalVertex::compute(MessageContainer& messages)
 			if (id == queryContainer[2])
 			{
 				//done
-				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+				//cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
 				canVisit();
 				forceTerminate(); 
 				return;
@@ -1027,7 +1021,7 @@ void temporalVertex::compute(MessageContainer& messages)
 			it2 = mOut.upper_bound(t2);
 			int idx;
 			vector<int> send(1);
-			for (it = it1; it!=mOut.end() && it!=it2; ++it)
+			for (it = it1; it!=it2; ++it)
 			{
 				idx = it->second;
 				
@@ -1038,12 +1032,11 @@ void temporalVertex::compute(MessageContainer& messages)
 					{
 						send[0] = 0;
 						send_message(queryContainer[2], send);
-						return;
+						break;
 					}
 					else if (ret == -1) //cannot visit from this vertex, need to be pruned
 					{
-						vote_to_halt();
-						return;
+						break;
 					}
 				}
 				
@@ -1054,6 +1047,7 @@ void temporalVertex::compute(MessageContainer& messages)
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			qvalue()[0] = t1;
 		}
 		else
 		{
@@ -1065,14 +1059,13 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				if (messages[i][0] < mini) mini = messages[i][0];
 			}
-			//cout << "id:" << id << " mini:" << mini << " lastT:" << lastT << endl;
 			if (id == queryContainer[2] /*mini <= t2*/)
 			{
 				//done
 				TaskT& task=*(TaskT*)query_entry();
 				if (mini <= Vin[task.m])
 				{
-					cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
+					//cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
 					canVisit();
 					forceTerminate(); return;
 				}
@@ -1083,32 +1076,32 @@ void temporalVertex::compute(MessageContainer& messages)
 				std::map<int,int>::iterator it;
 				int start, end;
 				it = mOut.lower_bound(mini);
-				start = it->second;
-				end = min(lastT, t2);
-				vector<int> send(1);
-				for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+				if (it != mOut.end())
 				{
-					
-					int ret = labelCompare(i);
-					if (ret != 0)
+					start = it->second;
+					end = min(lastT, t2);
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
 					{
-						if (ret == 1) //can visit
+						int ret = labelCompare(i);
+						if (ret != 0)
 						{
-							send[0] = 0;
-							send_message(queryContainer[2], send);
-							return;
+							if (ret == 1) //can visit
+							{
+								send[0] = 0;
+								send_message(queryContainer[2], send);
+								break;
+							}
+							else if (ret == -1) //cannot visit from this vertex, need to be pruned
+							{
+								break;
+							}
 						}
-						else if (ret == -1) //cannot visit from this vertex, need to be pruned
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
 						{
-							vote_to_halt();
-							return;
+							send[0] = Vout[i] + VoutNeighbors[i][j].w;
+							send_message(VoutNeighbors[i][j].v, send);
 						}
-					}
-					
-					for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
-					{
-						send[0] = Vout[i] + VoutNeighbors[i][j].w;
-						send_message(VoutNeighbors[i][j].v, send);
 					}
 				}
 				//reset lastT
@@ -1652,7 +1645,6 @@ void temporalVertex::compute(MessageContainer& messages)
 					toOut.resize(Vin.size());
 					toOut[cur] = -1;
 					mIn[arrivalT] = cur;
-					
 					/*
 					std::map<int,int>::iterator it = mOut.lower_bound(arrivalT);
 					if (it != mOut.end())
@@ -1671,7 +1663,7 @@ void temporalVertex::compute(MessageContainer& messages)
 					*/
 					LoutIn[cur].push_back(make_pair(id, arrivalT));
 					LinIn[cur].push_back(make_pair(id, arrivalT));
-					topologicalLevelIn[cur] = cur==0?0:topologicalLevelOut[cur-1]+1;
+					topologicalLevelIn[cur] = cur==0?0:topologicalLevelIn[cur-1]+1;
 					/*
 					cout << "outLabel" << endl;
 					for (int i = 0; i < LoutIn[cur].size(); ++ i) cout << LoutIn[cur][i].first << " " << LoutIn[cur][i].second << endl;
@@ -1682,7 +1674,6 @@ void temporalVertex::compute(MessageContainer& messages)
 					VinNeighbors[Vin.size()-1].push_back(vw{queryContainer[2], queryContainer[4]});
 				}
 				else assert(0);
-				
 				//send messages
 				int cur = Vin.size()-1;
 				vector<int> send;
@@ -1897,6 +1888,7 @@ void temporalVertex::compute(MessageContainer& messages)
 	{
 		if (superstep() == 1)
 		{
+			/*
 			cout << "id: " << id << endl;
 			for (int i = 0; i < Vin.size(); ++ i)
 			{
@@ -1916,6 +1908,17 @@ void temporalVertex::compute(MessageContainer& messages)
 				for (int j = 0; j < LoutOut[i].size(); ++ j) cout << "(" << LoutOut[i][j].first << ", " << LoutOut[i][j].second << ") ";
 				cout << endl;
 			}
+			*/
+			/*
+			for (int i = 0; i < Vin.size(); ++ i)
+			{
+				cout << id << " " << Vin[i] << " " << topologicalLevelIn[i]  << endl;
+			}
+			for (int i = 0; i < Vout.size(); ++ i)
+			{
+				cout << id << " " << Vout[i] << " " << topologicalLevelOut[i]  << endl;
+			}
+			*/
 		}
 		vote_to_halt();
 	}
@@ -1979,6 +1982,21 @@ public:
 			else sprintf(buf, "%d %d\n", vertex->id, vertex->qvalue()[0]);
 			writer.write(buf);
 		}
+		/*
+		if (task.query[0] == TEST)
+		{
+			for (int i = 0; i < vertex->Vin.size(); ++ i)
+			{	
+				sprintf(buf, "%d %d %d\n", vertex->id, vertex->Vin[i], vertex->topologicalLevelIn[i]);
+				writer.write(buf);
+			}
+			for (int i = 0; i < vertex->Vout.size(); ++ i)
+			{	
+				sprintf(buf, "%d %d %d\n", vertex->id, vertex->Vout[i], vertex->topologicalLevelOut[i]);
+				writer.write(buf);
+			}
+		}
+		*/
 	}
 };
 
