@@ -135,6 +135,7 @@ public:
     int labelCompare(int idx) //-1: cannot reach; 1: reach; 0:cannot answer
     {
     	TaskT& task=*(TaskT*)query_entry();
+    	
     	//timeLabel
     	if (Vout[idx] >= task.dst_timeLabel) return -1;
     	
@@ -142,7 +143,9 @@ public:
     	if (topologicalLevelOut[idx] >= task.dst_topologicalLevel) return -1;
     	
     	//topoChain
+    	
     	int p1, p2;
+    	
     	p1 = p2 = 0;
     	while(p1 < LoutOut[idx].size() && p2 < task.dst_Lout.size() )
     	{
@@ -168,6 +171,7 @@ public:
     	}
     	
     	//intersect
+    	
     	p1 = p2 = 0;
     	while(p1 < LoutOut[idx].size() && p2 < task.dst_Lin.size() )
     	{
@@ -176,6 +180,7 @@ public:
     		else if (LoutOut[idx][p1].first < task.dst_Lin[p2].first) p1++;
     		else p2++;
     	}
+    	
     	return 0;
     }
     
@@ -205,6 +210,8 @@ public:
 	   		if (final2.size() == k) break;
     	}
     	final = final2;
+    	
+    	
     }
     void mergeIn(vector<pair<int,int> >& final, vector<pair<int,int> >& v1, vector<pair<int,int> >& v2, vector<pair<int,int> >& store, int k)
     {
@@ -419,9 +426,9 @@ public:
 					while(nxt_id < Vout.size())
 					{
 						countinDegreeOut[nxt_id] ++;
+						topologicalLevelOut[nxt_id] = topologicalLevelOut[nxt_id-1] + 1;
 						if (countinDegreeOut[nxt_id] == inDegreeOut[nxt_id])
 						{
-							topologicalLevelOut[nxt_id] = topologicalLevelOut[nxt_id-1] + 1;
 							send[0] = topologicalLevelOut[nxt_id]+1;
 							for (int j = 0; j < VoutNeighbors[nxt_id].size(); ++ j)
 							{
@@ -513,21 +520,6 @@ public:
 				vector<int>().swap(inDegreeIn);
 				vector<int>().swap(inDegreeOut);
 			
-			
-				//cout << "phaseNum: " << phaseNum << endl;
-				/*
-				cout << "id: " << id << endl;
-				for (int i = 0; i < Vin.size(); ++ i)
-				{
-					cout << topologicalLevelIn[i] << endl;
-				}
-				for (int i = 0; i < Vout.size(); ++ i)
-				{
-					cout << topologicalLevelOut[i] << endl;
-				}
-				*/
-			
-				//labelSize = 5;
 				LinIn.resize(Vin.size()); //inlabel for Vin
 				LoutIn.resize(Vin.size()); //outlabel for Vin
 				LinOut.resize(Vout.size());
@@ -603,8 +595,27 @@ public:
 						LtinIn[mIn[-msg[0]]].push_back(make_pair(msg[1], msg[2]));
 					}
 				}
-				for (int i = 0; i < Vin.size(); ++ i) sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
-				for (int i = 0; i < Vout.size(); ++ i) sort(LtoutOut[i].begin(), LtoutOut[i].end());
+				vector<pair<int,int> >::iterator it;
+				for (int i = 0; i < Vin.size(); ++ i) 
+				{
+					sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
+					for (int j = 1; j < LtinIn[i].size(); ++ j)
+					{
+						if (LtinIn[i][j].first == LtinIn[i][j-1].first) LtinIn[i][j] = LtinIn[i][j-1];
+					}
+					it = unique(LtinIn[i].begin(), LtinIn[i].end() );
+					LtinIn[i].resize(min((int)std::distance(LtinIn[i].begin(),it),labelSize) );
+				}
+				for (int i = 0; i < Vout.size(); ++ i) 
+				{
+					sort(LtoutOut[i].begin(), LtoutOut[i].end());
+					for (int j = 1; j < LtoutOut[i].size(); ++ j)
+					{
+						if (LtoutOut[i][j].first == LtoutOut[i][j-1].first) LtoutOut[i][j] = LtoutOut[i][j-1];
+					}
+					it = unique(LtoutOut[i].begin(), LtoutOut[i].end());
+					LtoutOut[i].resize(min((int)std::distance(LtoutOut[i].begin(),it),labelSize) );
+				}
 				
 				//reverse topological order
 				int p1 = Vin.size()-1;
@@ -759,6 +770,7 @@ public:
 					cout << endl;
 				}
 				*/
+				
 			}		
 		}
     }
@@ -900,6 +912,11 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1)
 		{
+			TaskT& task=*(TaskT*)query_entry();
+			if (task.dst_info[0] == -1){
+				vote_to_halt(); return;
+			}
+			
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
 			{
@@ -930,7 +947,6 @@ void temporalVertex::compute(MessageContainer& messages)
 						break;
 					}
 				}
-				
 				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
 				{
 					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
@@ -1006,6 +1022,10 @@ void temporalVertex::compute(MessageContainer& messages)
 		int t2 = inf;
 		if (superstep() == 1 || restart() )
 		{
+			TaskT& task=*(TaskT*)query_entry();
+			if (task.dst_info[0] == -1){
+				vote_to_halt(); return;
+			}
 			//cout << "starting vertex: " << id << endl;
 			if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
 			if (id == queryContainer[2])
@@ -1809,17 +1829,19 @@ void temporalVertex::compute(MessageContainer& messages)
 			{
 				vector<int>& msg = messages[i];
 				
-				if (msg[0] >= 0) //out-label
-				{
-					LtoutOut[mOut[msg[0]]].push_back(make_pair(msg[1], msg[2]));
-				}
-				else if (msg[0] < 0) //in-label
-				{
-					LtinIn[mIn[-msg[0]]].push_back(make_pair(msg[1], msg[2]));
-				}
+				LtoutOut[mOut[msg[0]]].push_back(make_pair(msg[1], msg[2]));
 			}
-			//for (int i = 0; i < Vin.size(); ++ i) sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
-			for (int i = 0; i < Vout.size(); ++ i) sort(LtoutOut[i].begin(), LtoutOut[i].end());
+			vector<pair<int,int> >::iterator it;
+			for (int i = 0; i < Vout.size(); ++ i) 
+			{
+				sort(LtoutOut[i].begin(), LtoutOut[i].end());
+				for (int j = 1; j < LtoutOut[i].size(); ++ j)
+				{
+					if (LtoutOut[i][j].first == LtoutOut[i][j-1].first) LtoutOut[i][j] = LtoutOut[i][j-1];
+				}
+				it = unique(LtoutOut[i].begin(), LtoutOut[i].end());
+				LtoutOut[i].resize(min((int)std::distance(LtoutOut[i].begin(),it),labelSize) );
+			}
 			
 			//reverse topological order
 			int p1 = Vin.size()-1;
@@ -1982,7 +2004,7 @@ public:
 			else sprintf(buf, "%d %d\n", vertex->id, vertex->qvalue()[0]);
 			writer.write(buf);
 		}
-		/*
+		
 		if (task.query[0] == TEST)
 		{
 			for (int i = 0; i < vertex->Vin.size(); ++ i)
@@ -1995,8 +2017,8 @@ public:
 				sprintf(buf, "%d %d %d\n", vertex->id, vertex->Vout[i], vertex->topologicalLevelOut[i]);
 				writer.write(buf);
 			}
+			
 		}
-		*/
 	}
 };
 
