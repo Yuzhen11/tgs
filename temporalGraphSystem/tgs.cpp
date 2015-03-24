@@ -106,20 +106,32 @@ public:
         vector<int> ret;
         if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
         || queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
-        || queryContainer[0] == EARLIEST_QUERY  || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY)
+        || queryContainer[0] == EARLIEST_QUERY  || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY
+        || queryContainer[0] == TOPKNEIGHBORS_EARLIEST || queryContainer[0] == TOPKNEIGHBORS_FASTEST
+        || queryContainer[0] == TOPKNEIGHBORS_SHORTEST
+        || queryContainer[0] == KHOP_EARLIEST || queryContainer[0] == KHOP_FASTEST
+        || queryContainer[0] == KHOP_SHORTEST 
+        
+        || queryContainer[0] == INTERSECT
+        || queryContainer[0] == MIDDLE
+        
+        )
         {
         	//if (Vout.size() > 0) ret.push_back(Vout[Vout.size()-1]+1); //lastT
         	//else ret.push_back(-1);
         	ret.push_back(inf);
         }
-        if (queryContainer[0] == LATEST_QUERY) ret.push_back(0);
+        if (queryContainer[0] == LATEST_QUERY || queryContainer[0] == TOPKNEIGHBORS_LATEST
+        || queryContainer[0] == KHOP_LATEST) ret.push_back(0);
         
-        if (queryContainer[0] == FASTEST_QUERY) 
+        if (queryContainer[0] == FASTEST_QUERY || queryContainer[0] == TOPKNEIGHBORS_FASTEST
+        || queryContainer[0] == KHOP_FASTEST) 
         {
         	latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), -1);
         	lastOut.resize(0); lastOut.resize(Vout.size(), -1);
         }
-        else if (queryContainer[0] == SHORTEST_QUERY) 
+        else if (queryContainer[0] == SHORTEST_QUERY || queryContainer[0] == TOPKNEIGHBORS_SHORTEST
+        || queryContainer[0] == KHOP_SHORTEST) 
         {
         	latestArrivalTime.resize(0);latestArrivalTime.resize(Vin.size(), inf);
         	lastOut.resize(0); lastOut.resize(Vout.size(), inf);
@@ -599,22 +611,26 @@ public:
 				for (int i = 0; i < Vin.size(); ++ i) 
 				{
 					sort(LtinIn[i].begin(), LtinIn[i].end(), cmp2);
+					
 					for (int j = 1; j < LtinIn[i].size(); ++ j)
 					{
 						if (LtinIn[i][j].first == LtinIn[i][j-1].first) LtinIn[i][j] = LtinIn[i][j-1];
 					}
 					it = unique(LtinIn[i].begin(), LtinIn[i].end() );
 					LtinIn[i].resize(min((int)std::distance(LtinIn[i].begin(),it),labelSize) );
+					
 				}
 				for (int i = 0; i < Vout.size(); ++ i) 
 				{
 					sort(LtoutOut[i].begin(), LtoutOut[i].end());
+					
 					for (int j = 1; j < LtoutOut[i].size(); ++ j)
 					{
 						if (LtoutOut[i][j].first == LtoutOut[i][j-1].first) LtoutOut[i][j] = LtoutOut[i][j-1];
 					}
 					it = unique(LtoutOut[i].begin(), LtoutOut[i].end());
 					LtoutOut[i].resize(min((int)std::distance(LtoutOut[i].begin(),it),labelSize) );
+					
 				}
 				
 				//reverse topological order
@@ -1263,6 +1279,7 @@ void temporalVertex::compute(MessageContainer& messages)
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			qvalue()[0] = t1;
 		}
 		else
 		{
@@ -1372,6 +1389,7 @@ void temporalVertex::compute(MessageContainer& messages)
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			qvalue()[0] = t2;
 		}
 		else
 		{
@@ -1427,6 +1445,8 @@ void temporalVertex::compute(MessageContainer& messages)
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			for (int i = 0; i < Vin.size(); ++ i) latestArrivalTime[i] = Vin[i];
+			qvalue()[0] = 0;
 		}
 		else
 		{
@@ -1507,6 +1527,8 @@ void temporalVertex::compute(MessageContainer& messages)
 					send_message(VoutNeighbors[idx][j].v, send);
 				}
 			}
+			for (int i = 0; i < Vin.size(); ++ i) latestArrivalTime[i] = 0;
+			qvalue()[0] = 0;
 		}
 		else
 		{
@@ -1904,12 +1926,744 @@ void temporalVertex::compute(MessageContainer& messages)
 		}
 		vote_to_halt();
 	}
-	
+	else if (queryContainer[0] == TOPKNEIGHBORS_EARLIEST) //top-k neighbors application; query: 22, src, type, t1, t2
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];} //different from EARLIEST_QUERY
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			int count1 = 0;
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				count1++;
+				if (count1 > queryContainer[2]) break;
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			qvalue()[0] = t1;
+		}
+		else
+		{
+			int mini = inf;
+			int& lastT = qvalue()[0];
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] < mini) mini = messages[i][0];
+			}
+			
+			//aggregator
+			int& aggValue = *((int*)get_agg());
+			if (mini > aggValue)
+			{
+				vote_to_halt();
+				return;
+			}
+			t2 = min(t2, aggValue);
+			
+			if (mini < lastT)
+			{
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.lower_bound(mini);
+				if (it != mOut.end()) {
+					start = it->second;
+					end = min(lastT, t2);
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+					{
+						if (i-start >= queryContainer[2]) break;
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = Vout[i] + VoutNeighbors[i][j].w;
+							if (send[0] > aggValue) break;
+							send_message(VoutNeighbors[i][j].v, send);
+						}
+					}
+				}
+				lastT = mini;
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == TOPKNEIGHBORS_LATEST) //top-k neighbors application; query: 24, src, type, t1, t2
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			int count1 = 0;
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				count1++;
+				if (count1 > queryContainer[2]) break;
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = -(Vout[idx] - VoutNeighbors[idx][j].w);
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			qvalue()[0] = -t2; //
+		}
+		else
+		{
+			int maxi = 0;
+			int& lastT = qvalue()[0];
+			lastT = -lastT; //
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (-messages[i][0] > maxi) maxi = -messages[i][0];
+			}
+			
+			//aggregator
+			int& aggValue = *((int*)get_agg());
+			if (maxi < -aggValue)
+			{
+				vote_to_halt();
+				return;
+			}
+			t1 = max(t1, -aggValue);
+			
+			if (maxi > lastT)
+			{
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.upper_bound(max(t1,lastT));
+				if (it != mOut.end())
+				{
+					start = it->second;
+					end = maxi;
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] <= end; ++ i)
+					{
+						if (i-start >= queryContainer[2]) break;
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = -(Vout[i] - VoutNeighbors[i][j].w);
+							if (send[0] > aggValue) break;
+							send_message(VoutNeighbors[i][j].v, send);
+						}
+					}
+				}
+				lastT = maxi;
+			}
+			lastT = -lastT; //
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == TOPKNEIGHBORS_FASTEST) //top-k neighbors application
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(2);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send[1] = Vout[idx];
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			for (int i = 0; i < Vin.size(); ++ i) latestArrivalTime[i] = Vin[i];
+			qvalue()[0] = 0;
+		}
+		else
+		{
+			//aggregator
+			int& aggValue = *((int*)get_agg());
+			
+			vector<int> changed;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				std::map<int,int>::iterator it;
+				it = mIn.lower_bound(messages[i][0]);
+				int idx = it->second;
+				if (latestArrivalTime[idx] < messages[i][1])
+				{
+					latestArrivalTime[idx] = messages[i][1];
+					changed.push_back(idx);
+					if (Vin[idx] - latestArrivalTime[idx] < qvalue()[0]) qvalue()[0] = Vin[idx] - latestArrivalTime[idx]; //store the fastest
+				} 
+			}
+			std::sort(changed.begin(), changed.end());
+			std::vector<int>::iterator it;
+			it = std::unique(changed.begin(), changed.end());
+			changed.resize(std::distance(changed.begin(),it));
+			if (changed.size() > 0)
+			{
+				int currMax = latestArrivalTime[changed[0]];
+				for (int i = 1; i < changed.size(); ++ i)
+				{
+					currMax = max(currMax, latestArrivalTime[changed[i]]);
+					latestArrivalTime[changed[i]] = currMax;
+				}
+				std::map<int,int>::iterator itOut = mOut.lower_bound(Vin[changed[0]]);
+				if (itOut != mOut.end())
+				{
+					int start = itOut->second;
+					int shouldSend = latestArrivalTime[changed[0]];
+					int pt = 0;
+					vector<int> send(2);
+					for (int i = start; i < Vout.size() && Vout[i] < t2; ++ i)
+					{
+						while(pt < changed.size() && Vin[changed[pt]] <= Vout[i]) 
+						{
+							shouldSend = max(shouldSend, latestArrivalTime[changed[pt]]);
+							pt++;
+						}
+						if (shouldSend > lastOut[i])
+						{
+							lastOut[i] = shouldSend;
+							send[1] = shouldSend;
+							for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+							{
+								send[0] = Vout[i] + VoutNeighbors[i][j].w;
+								if (send[0] - send[1] > aggValue) continue;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == TOPKNEIGHBORS_SHORTEST) //top-k neighbors application
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(2);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send[1] = VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			for (int i = 0; i < Vin.size(); ++ i) latestArrivalTime[i] = 0;
+			qvalue()[0] = 0;
+		}
+		else
+		{
+			//aggregator
+			int& aggValue = *((int*)get_agg());
+			
+			vector<int> changed;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				std::map<int,int>::iterator it;
+				it = mIn.lower_bound(messages[i][0]);
+				int idx = it->second;
+				if (messages[i][1] < latestArrivalTime[idx])
+				{
+					latestArrivalTime[idx] = messages[i][1];
+					changed.push_back(idx); 
+					if (latestArrivalTime[idx] < qvalue()[0]) qvalue()[0] = latestArrivalTime[idx]; //store the shortest
+				} 
+			}
+			std::sort(changed.begin(), changed.end());
+			std::vector<int>::iterator it;
+			it = std::unique(changed.begin(), changed.end());
+			changed.resize(std::distance(changed.begin(),it));
+			if (changed.size() > 0)
+			{
+				int currMin = latestArrivalTime[changed[0]];
+				for (int i = 1; i < changed.size(); ++ i)
+				{
+					currMin = min(currMin, latestArrivalTime[changed[i]]);
+					latestArrivalTime[changed[i]] = currMin;
+				}
+				std::map<int,int>::iterator itOut = mOut.lower_bound(Vin[changed[0]]);
+				if (itOut != mOut.end())
+				{
+					int start = itOut->second;
+					int shouldSend = latestArrivalTime[changed[0]];
+					int pt = 0;
+					vector<int> send(2);
+					for (int i = start; i < Vout.size() && Vout[i] < t2; ++ i)
+					{
+						while(pt < changed.size() && Vin[changed[pt]] <= Vout[i]) 
+						{
+							shouldSend = min(shouldSend, latestArrivalTime[changed[pt]]);
+							pt++;
+						}
+						if (shouldSend < lastOut[i])
+						{
+							lastOut[i] = shouldSend;
+							for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+							{
+								send[0] = Vout[i] + VoutNeighbors[i][j].w;
+								send[1] = shouldSend + VoutNeighbors[i][j].w;
+								if (send[1] > aggValue) continue;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == KHOP_EARLIEST) //KHOP: 26, src, k, t1, t2
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			qvalue()[0] = t1;
+		}
+		else
+		{
+			int mini = inf;
+			int& lastT = qvalue()[0];
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] < mini) mini = messages[i][0];
+			}
+			//
+			if (superstep() > queryContainer[2])
+			{
+				vote_to_halt();
+				return;
+			}
+			
+			if (mini < lastT)
+			{
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.lower_bound(mini);
+				if (it != mOut.end()) {
+					start = it->second;
+					end = min(lastT, t2);
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] < end; ++ i)
+					{
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = Vout[i] + VoutNeighbors[i][j].w;
+							send_message(VoutNeighbors[i][j].v, send);
+						}
+					}
+				}
+				lastT = mini;
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == KHOP_LATEST) // k-hop application
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(1);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = -(Vout[idx] - VoutNeighbors[idx][j].w);
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			qvalue()[0] = t2; //
+		}
+		else
+		{
+			int maxi = 0;
+			int& lastT = qvalue()[0];
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (-messages[i][0] > maxi) maxi = -messages[i][0];
+			}
+			//
+			if (superstep() > queryContainer[2])
+			{
+				vote_to_halt();
+				return;
+			}
+			
+			if (maxi > lastT)
+			{
+				std::map<int,int>::iterator it;
+				int start, end;
+				it = mOut.upper_bound(max(t1,lastT));
+				if (it != mOut.end())
+				{
+					start = it->second;
+					end = maxi;
+					vector<int> send(1);
+					for (int i = start; i < Vout.size() && Vout[i] <= end; ++ i)
+					{
+						for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+						{
+							send[0] = -(Vout[i] - VoutNeighbors[i][j].w);
+							send_message(VoutNeighbors[i][j].v, send);
+						}
+					}
+				}
+				lastT = maxi;
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == KHOP_FASTEST) //k-hop application
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(2);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send[1] = Vout[idx];
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			for (int i = 0; i < Vin.size(); ++ i) latestArrivalTime[i] = Vin[i];
+			qvalue()[0] = 0;
+		}
+		else
+		{
+			//
+			if (superstep() > queryContainer[2])
+			{
+				vote_to_halt();
+				return;
+			}
+			
+			vector<int> changed;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				std::map<int,int>::iterator it;
+				it = mIn.lower_bound(messages[i][0]);
+				int idx = it->second;
+				if (latestArrivalTime[idx] < messages[i][1])
+				{
+					latestArrivalTime[idx] = messages[i][1];
+					changed.push_back(idx);
+					if (Vin[idx] - latestArrivalTime[idx] < qvalue()[0]) qvalue()[0] = Vin[idx] - latestArrivalTime[idx]; //store the fastest
+				} 
+			}
+			std::sort(changed.begin(), changed.end());
+			std::vector<int>::iterator it;
+			it = std::unique(changed.begin(), changed.end());
+			changed.resize(std::distance(changed.begin(),it));
+			if (changed.size() > 0)
+			{
+				int currMax = latestArrivalTime[changed[0]];
+				for (int i = 1; i < changed.size(); ++ i)
+				{
+					currMax = max(currMax, latestArrivalTime[changed[i]]);
+					latestArrivalTime[changed[i]] = currMax;
+				}
+				std::map<int,int>::iterator itOut = mOut.lower_bound(Vin[changed[0]]);
+				if (itOut != mOut.end())
+				{
+					int start = itOut->second;
+					int shouldSend = latestArrivalTime[changed[0]];
+					int pt = 0;
+					vector<int> send(2);
+					for (int i = start; i < Vout.size() && Vout[i] < t2; ++ i)
+					{
+						while(pt < changed.size() && Vin[changed[pt]] <= Vout[i]) 
+						{
+							shouldSend = max(shouldSend, latestArrivalTime[changed[pt]]);
+							pt++;
+						}
+						if (shouldSend > lastOut[i])
+						{
+							lastOut[i] = shouldSend;
+							send[1] = shouldSend;
+							for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+							{
+								send[0] = Vout[i] + VoutNeighbors[i][j].w;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == KHOP_SHORTEST) //k-hop application
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		
+		if (superstep() == 1)
+		{
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = mOut.lower_bound(t1);
+			it2 = mOut.upper_bound(t2);
+			int idx;
+			vector<int> send(2);
+			for (it = it1; it != mOut.end() && it != it2; ++ it)
+			{
+				idx = it->second;
+				for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+				{
+					send[0] = Vout[idx] + VoutNeighbors[idx][j].w;
+					send[1] = VoutNeighbors[idx][j].w;
+					send_message(VoutNeighbors[idx][j].v, send);
+				}
+			}
+			for (int i = 0; i < Vin.size(); ++ i) latestArrivalTime[i] = 0;
+			qvalue()[0] = 0;
+		}
+		else
+		{
+			//
+			if (superstep() > queryContainer[2])
+			{
+				vote_to_halt();
+				return;
+			}
+				
+			vector<int> changed;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				std::map<int,int>::iterator it;
+				it = mIn.lower_bound(messages[i][0]);
+				int idx = it->second;
+				if (messages[i][1] < latestArrivalTime[idx])
+				{
+					latestArrivalTime[idx] = messages[i][1];
+					changed.push_back(idx); 
+					if (latestArrivalTime[idx] < qvalue()[0]) qvalue()[0] = latestArrivalTime[idx]; //store the shortest
+				} 
+			}
+			std::sort(changed.begin(), changed.end());
+			std::vector<int>::iterator it;
+			it = std::unique(changed.begin(), changed.end());
+			changed.resize(std::distance(changed.begin(),it));
+			if (changed.size() > 0)
+			{
+				int currMin = latestArrivalTime[changed[0]];
+				for (int i = 1; i < changed.size(); ++ i)
+				{
+					currMin = min(currMin, latestArrivalTime[changed[i]]);
+					latestArrivalTime[changed[i]] = currMin;
+				}
+				std::map<int,int>::iterator itOut = mOut.lower_bound(Vin[changed[0]]);
+				if (itOut != mOut.end())
+				{
+					int start = itOut->second;
+					int shouldSend = latestArrivalTime[changed[0]];
+					int pt = 0;
+					vector<int> send(2);
+					for (int i = start; i < Vout.size() && Vout[i] < t2; ++ i)
+					{
+						while(pt < changed.size() && Vin[changed[pt]] <= Vout[i]) 
+						{
+							shouldSend = min(shouldSend, latestArrivalTime[changed[pt]]);
+							pt++;
+						}
+						if (shouldSend < lastOut[i])
+						{
+							lastOut[i] = shouldSend;
+							for (int j = 0; j < VoutNeighbors[i].size(); ++ j)
+							{
+								send[0] = Vout[i] + VoutNeighbors[i][j].w;
+								send[1] = shouldSend + VoutNeighbors[i][j].w;
+								send_message(VoutNeighbors[i][j].v, send);
+							}
+						}
+					}
+				}
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == INTERSECT)
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		if (superstep() == 1)
+		{
+			if (id == queryContainer[1]) //u
+			{
+				std::map<int,int>::iterator it,it1,it2;
+				it1 = mOut.lower_bound(t1);
+				it2 = mOut.upper_bound(t2);
+				int idx;
+				vector<int> send(1);
+				for (it = it1; it != mOut.end() && it != it2; ++ it)
+				{
+					idx = it->second;
+					for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+					{
+						send[0] = id;
+						send_message(VoutNeighbors[idx][j].v, send);
+					}
+				}
+			}
+			else if (id == queryContainer[2]) //v
+			{
+				std::map<int,int>::iterator it,it1,it2;
+				it1 = mIn.lower_bound(t1);
+				it2 = mIn.upper_bound(t2);
+				int idx;
+				vector<int> send(1);
+				for (it = it1; it != mIn.end() && it != it2; ++ it)
+				{
+					idx = it->second;
+					for (int j = 0; j < VinNeighbors[idx].size(); ++ j)
+					{
+						send[0] = id;
+						send_message(VinNeighbors[idx][j].v, send);
+					}
+				}
+			}
+		}
+		else
+		{
+			bool getU = 0;
+			bool getV = 0;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] == queryContainer[1]) getU = 1;
+				if (messages[i][0] == queryContainer[2]) getV = 1;
+			}
+			if (getU == 1 && getV == 1)
+			{
+				qvalue()[0] = 1; //to represent intersect
+				//cout << id << endl;
+			}
+		}
+		vote_to_halt();
+	}
+	else if (queryContainer[0] == MIDDLE)
+	{
+		int t1 = 0; int t2 = inf;
+		if (queryContainer.size() == 5) {t1 = queryContainer[3]; t2 = queryContainer[4];}
+		if (superstep() == 1)
+		{
+			if (id == queryContainer[1]) //u
+			{
+				std::map<int,int>::iterator it,it1,it2;
+				it1 = mOut.lower_bound(t1);
+				it2 = mOut.upper_bound(t2);
+				int idx;
+				vector<int> send(2);
+				for (it = it1; it != mOut.end() && it != it2; ++ it)
+				{
+					idx = it->second;
+					for (int j = 0; j < VoutNeighbors[idx].size(); ++ j)
+					{
+						send[0] = id;
+						send[1] = Vout[idx]+VoutNeighbors[idx][j].w;
+						send_message(VoutNeighbors[idx][j].v, send);
+					}
+				}
+			}
+			else if (id == queryContainer[2]) //v
+			{
+				std::map<int,int>::iterator it,it1,it2;
+				it1 = mIn.lower_bound(t1);
+				it2 = mIn.upper_bound(t2);
+				int idx;
+				vector<int> send(2);
+				for (it = it1; it != mIn.end() && it != it2; ++ it)
+				{
+					idx = it->second;
+					for (int j = 0; j < VinNeighbors[idx].size(); ++ j)
+					{
+						send[0] = id;
+						send[1] = Vin[idx]-VinNeighbors[idx][j].w;
+						send_message(VinNeighbors[idx][j].v, send);
+					}
+				}
+			}
+		}
+		else
+		{
+			int getU = inf;
+			int getV = -1;
+			for (int i = 0; i < messages.size(); ++ i)
+			{
+				if (messages[i][0] == queryContainer[1] && messages[i][1] < getU) getU = messages[i][1];
+				if (messages[i][0] == queryContainer[2] && messages[i][1] > getV) getV = messages[i][1];
+			}
+			if (getU <= getV)
+			{
+				qvalue()[0] = 1; //to represent intersect
+				//cout << id << endl;
+			}
+		}
+		vote_to_halt();
+	}
 	
 	else if (queryContainer[0] == TEST)
 	{
 		if (superstep() == 1)
 		{
+			
 			/*
 			cout << "id: " << id << endl;
 			for (int i = 0; i < Vin.size(); ++ i)
@@ -1941,15 +2695,66 @@ void temporalVertex::compute(MessageContainer& messages)
 				cout << id << " " << Vout[i] << " " << topologicalLevelOut[i]  << endl;
 			}
 			*/
+			/*
+			countOut = 0;
+			for (int i = 0; i < Vin.size(); ++ i) countOut += (LinIn[i].size() + LoutIn[i].size());
+			for (int i = 0; i < Vout.size(); ++ i) countOut += (LinOut.size() + LoutOut[i].size());
+			*/
 		}
 		vote_to_halt();
 	}
 }
 
-//define worker class
-class temporalWorker : public WorkerOL<temporalVertex>{
+class temporalAggregator : public Aggregator<temporalVertex, vector<int>, int> {
 public:
-	char buf[1000];
+	vector<int> collect;
+	int aggValue;
+	int k; //query specific
+	
+	virtual void init(){}
+	virtual void init(int val_k){
+		collect.resize(0);
+		k = val_k+1;
+	}
+	
+	virtual void stepPartial(temporalVertex* v){
+		int& tmp = *((int*)(v->get_agg()));
+		if (v->qvalue()[0] <= tmp)
+		collect.push_back(v->qvalue()[0]);
+	}
+	virtual vector<int>* finishPartial(){
+		std::sort(collect.begin(), collect.end());
+		if (collect.size() > k) collect.resize(k);
+		return &collect;
+	}
+	virtual void stepFinal(vector<int>* p){
+		for (int i = 0; i < p->size(); i ++){
+			collect.push_back( (*p)[i] );
+		}
+	}
+	virtual int* finishFinal(){
+		sort(collect.begin(), collect.end());
+		/*
+		cout << "*" << endl;
+		for (int i = 0; i < collect.size(); ++ i)
+		{
+			cout << collect[i] << " ";
+		}
+		cout << endl;
+		*/
+		if (k <= collect.size()) aggValue = collect[k-1];
+		else aggValue = inf;
+		return &aggValue;
+	}
+};
+
+//define worker class
+class temporalWorker : public WorkerOL<temporalVertex, temporalAggregator>{
+public:
+	char buf[50];
+	
+	temporalWorker():WorkerOL<temporalVertex, temporalAggregator>(true){}
+	
 	virtual temporalVertex* toVertex(char* line)
 	{
 		temporalVertex* v = new temporalVertex;
@@ -1993,10 +2798,69 @@ public:
         if (pos != -1)
             activate(pos);
     }
+    virtual void task_init()
+	{
+		//init(vertexes);
+		
+		QueryT& queryContainer = *get_query();
+		//cout << "queryContainer: " << endl;
+		//cout << queryContainer.size() << endl;
+		//for (int i = 0; i < queryContainer.size(); ++ i) cout << queryContainer[i] << endl;
+		if (queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY 
+		|| queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
+		|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
+		|| queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == LATEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY
+		|| queryContainer[0] == TOPKNEIGHBORS_EARLIEST || queryContainer[0] == TOPKNEIGHBORS_FASTEST
+		|| queryContainer[0] == TOPKNEIGHBORS_SHORTEST || queryContainer[0] == TOPKNEIGHBORS_LATEST
+		|| queryContainer[0] == KHOP_EARLIEST || queryContainer[0] == KHOP_FASTEST
+		|| queryContainer[0] == KHOP_SHORTEST || queryContainer[0] == KHOP_LATEST
+		)
+		{
+			//get neighbors: 1/2, v, (t1,t2)
+			//reachability: 3/4, src, dst, (t1, t2)
+			int src = queryContainer[1];
+			int pos = get_vpos(src);
+			if (pos != -1) activate(pos);
+		}
+		if (queryContainer[0] == ADDEDGE
+		|| queryContainer[0] == INTERSECT
+		|| queryContainer[0] == MIDDLE
+		)
+		{
+			int src = queryContainer[1];
+			int dst = queryContainer[2];
+			int pos = get_vpos(src);
+			if (pos != -1) activate(pos);
+			pos = get_vpos(dst);
+			if (pos != -1) activate(pos);
+		}
+		if (queryContainer[0] == TEST)
+		{
+			for (int i = 0; i < vertexes.size(); ++ i)
+			{
+				activate(get_vpos(vertexes[i]->id));
+			}
+		}
+		
+		//useCombiner
+		if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
+		|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
+		|| queryContainer[0] == EARLIEST_QUERY  || queryContainer[0] == LATEST_QUERY
+		|| queryContainer[0] == TOPKNEIGHBORS_EARLIEST || queryContainer[0] == TOPKNEIGHBORS_LATEST
+		|| queryContainer[0] == KHOP_EARLIEST || queryContainer[0] == KHOP_LATEST) 
+		{
+			TaskT& task=*(TaskT*)query_entry();
+			task.useCombiner = 1;
+		}
+	}
 	virtual void dump(temporalVertex* vertex, BufferedWriter& writer)
 	{
 		TaskT& task=*(TaskT*)query_entry();
-		if (task.query[0] == EARLIEST_QUERY || task.query[0] == LATEST_QUERY ||task.query[0] == FASTEST_QUERY || task.query[0] == SHORTEST_QUERY)
+		if (task.query[0] == EARLIEST_QUERY || task.query[0] == LATEST_QUERY ||task.query[0] == FASTEST_QUERY || task.query[0] == SHORTEST_QUERY
+		|| task.query[0] == TOPKNEIGHBORS_EARLIEST || task.query[0] == TOPKNEIGHBORS_FASTEST 
+		|| task.query[0] == TOPKNEIGHBORS_SHORTEST || task.query[0] == TOPKNEIGHBORS_LATEST
+		|| task.query[0] == KHOP_EARLIEST || task.query[0] == KHOP_FASTEST 
+		|| task.query[0] == KHOP_SHORTEST || task.query[0] == KHOP_LATEST)
 		{
 			//if (vertex->id == task.query[1]) cout << vertex->id << " " << 0 << endl;
 			//else cout << vertex->id << " " << vertex->qvalue()[0] << endl;
@@ -2005,8 +2869,23 @@ public:
 			writer.write(buf);
 		}
 		
+		if (task.query[0] == MIDDLE || task.query[0] == INTERSECT)
+		{
+			if (vertex->qvalue()[0] == 1)
+			{
+				sprintf(buf, "%d\n", vertex->id);
+				writer.write(buf);
+			}
+		}
+		
 		if (task.query[0] == TEST)
 		{
+			int count1 = 0;
+			for (int i = 0; i < vertex->Vin.size(); ++ i) count1 += (vertex->LinIn[i].size() + vertex->LoutIn[i].size());
+			for (int i = 0; i < vertex->Vout.size(); ++ i) count1 += (vertex->LinOut[i].size() + vertex->LoutOut[i].size());
+			sprintf(buf, "%d\n", count1);
+			writer.write(buf);
+			/*
 			for (int i = 0; i < vertex->Vin.size(); ++ i)
 			{	
 				sprintf(buf, "%d %d %d\n", vertex->id, vertex->Vin[i], vertex->topologicalLevelIn[i]);
@@ -2017,7 +2896,7 @@ public:
 				sprintf(buf, "%d %d %d\n", vertex->id, vertex->Vout[i], vertex->topologicalLevelOut[i]);
 				writer.write(buf);
 			}
-			
+			*/
 		}
 	}
 };
