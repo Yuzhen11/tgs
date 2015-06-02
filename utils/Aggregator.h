@@ -17,6 +17,8 @@ public:
     virtual void stepFinal(PartialT* part) = 0;
     virtual PartialT* finishPartial() = 0;
     virtual FinalT* finishFinal() = 0;
+    
+    virtual void init(int k) = 0;
 };
 
 class DummyAgg : public Aggregator<void, char, char> {
@@ -38,6 +40,11 @@ public:
     virtual char* finishFinal()
     {
         return NULL;
+    }
+    
+    virtual void init(int k )
+    {
+    
     }
 };
 

@@ -32,8 +32,8 @@ class VertexOL {
 		typedef MessageBufferOL<VertexT> MessageBufT;
 
 		typedef SMPair<QValueT, MessageT> SMPairT;
-		typedef hash_map<int, SMPairT*> SMPMap;
-		// typedef std::map<int, SMPairT*> SMPMap;
+		//typedef hash_map<int, SMPairT*> SMPMap;
+		typedef std::map<int, SMPairT*> SMPMap;
 		typedef typename SMPMap::iterator SMPMapIter;
 
 		typedef Task<VertexT> TaskT;

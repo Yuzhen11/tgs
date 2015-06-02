@@ -76,6 +76,20 @@ inline void set_query_entry(void* q)
 #define LATEST_QUERY 10
 //update
 #define ADDEDGE 11
+//applications
+#define CLOSENESS 21
+#define TOPKNEIGHBORS_EARLIEST 22
+#define TOPKNEIGHBORS_FASTEST 23
+#define TOPKNEIGHBORS_SHORTEST 24
+#define TOPKNEIGHBORS_LATEST 25
+
+#define KHOP_EARLIEST 26
+#define KHOP_FASTEST 27
+#define KHOP_SHORTEST 28
+#define KHOP_LATEST 29
+
+#define INTERSECT 31
+#define MIDDLE 32
 //test
 #define TEST -1
 #define labelSize 2

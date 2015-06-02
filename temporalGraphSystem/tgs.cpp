@@ -803,6 +803,7 @@ void temporalVertex::compute(MessageContainer& messages)
 	//get neighbors: 0/1, v, (t1,t2)
 	if (queryContainer[0] == OUT_NEIGHBORS_QUERY)
 	{
+		/*
 		if (superstep() == 1)
 		{
 			int t1 = 0; int t2 = inf;
@@ -820,10 +821,12 @@ void temporalVertex::compute(MessageContainer& messages)
 				}
 			}
 		}
+		*/
 		vote_to_halt();
 	}
 	else if (queryContainer[0] == IN_NEIGHBORS_QUERY)
 	{
+		/*
 		if (superstep() == 1)
 		{
 			int t1 = 0; int t2 = inf;
@@ -841,6 +844,7 @@ void temporalVertex::compute(MessageContainer& messages)
 				}
 			}
 		}
+		*/
 		vote_to_halt();
 	}
 	else if (queryContainer[0] == REACHABILITY_QUERY)
@@ -858,7 +862,8 @@ void temporalVertex::compute(MessageContainer& messages)
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
 				canVisit();
-				forceTerminate();   
+				forceTerminate();  
+				qvalue()[0] = -1; //can visit label 
 				return;
 			}
 			std::map<int,int>::iterator it,it1,it2;
@@ -892,7 +897,9 @@ void temporalVertex::compute(MessageContainer& messages)
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
 				canVisit();
-				forceTerminate(); return;
+				forceTerminate(); 
+				qvalue()[0] = -1; //can visit label
+				return;
 			}
 			if (mini < lastT)
 			{	
@@ -939,7 +946,9 @@ void temporalVertex::compute(MessageContainer& messages)
 				//done
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
 				canVisit();
-				forceTerminate(); return;
+				forceTerminate(); 
+				qvalue()[0] = -1; //can visit label
+				return;
 			}
 			std::map<int,int>::iterator it,it1,it2;
 			it1 = mOut.lower_bound(t1);
@@ -987,6 +996,7 @@ void temporalVertex::compute(MessageContainer& messages)
 				cout << queryContainer[1] << " can visit " << queryContainer[2] << endl;
 				canVisit();
 				forceTerminate(); 
+				qvalue()[0] = -1; //can visit label
 				return;
 			}
 			if (mini < lastT)
@@ -1312,7 +1322,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		}
 		vote_to_halt();
 	}
-	/*
+	
 	else if (queryContainer[0] == LATEST_QUERY) //analytic query
 	{
 		int t1 = 0; int t2 = inf;
@@ -1367,8 +1377,8 @@ void temporalVertex::compute(MessageContainer& messages)
 		}
 		vote_to_halt();
 	}
-	*/
-	else if (queryContainer[0] == LATEST_QUERY) //analytic query
+	/*
+	else if (queryContainer[0] == LATEST_QUERY) //analytic query for experiment
 	{
 		int t1 = 0; int t2 = inf;
 		if (queryContainer.size() == 4) {t1 = queryContainer[2]; t2 = queryContainer[3];}
@@ -1423,6 +1433,7 @@ void temporalVertex::compute(MessageContainer& messages)
 		}
 		vote_to_halt();
 	}
+	*/
 	else if (queryContainer[0] == FASTEST_QUERY) //analytic query
 	{
 		int t1 = 0; int t2 = inf;
@@ -2877,6 +2888,62 @@ public:
 				writer.write(buf);
 			}
 		}
+		//neighbors
+		if (task.query[0] == OUT_NEIGHBORS_QUERY)
+		{
+			int t1 = 0; int t2 = inf;
+			if (task.query.size() == 4) {t1 = task.query[2]; t2 = task.query[3];}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = vertex->mOut.lower_bound(t1);
+			it2 = vertex->mOut.upper_bound(t2);
+			int idx;
+			for (it = it1; it!=vertex->mOut.end() && it!=it2; ++it)
+			{
+				idx = it->second;
+				for (int j = 0; j < vertex->VoutNeighbors[idx].size(); ++ j)
+				{
+					//cout << "(" << vertex->VoutNeighbors[idx][j].v << " " << vertex->Vout[idx] << " " << vertex->VoutNeighbors[idx][j].w << ")"<< endl;
+					sprintf(buf, "%d %d %d\n", vertex->VoutNeighbors[idx][j].v, vertex->Vout[idx], vertex->VoutNeighbors[idx][j].w);
+					writer.write(buf);
+				}
+			}
+		}
+		if (task.query[0] == IN_NEIGHBORS_QUERY)
+		{
+			int t1 = 0; int t2 = inf;
+			if (task.query.size() == 4) {t1 = task.query[2]; t2 = task.query[3];}
+			std::map<int,int>::iterator it,it1,it2;
+			it1 = vertex->mIn.lower_bound(t1);
+			it2 = vertex->mIn.upper_bound(t2);
+			int idx;
+			for (it = it1; it!=vertex->mIn.end() && it!=it2; ++it)
+			{
+				idx = it->second;
+				for (int j = 0; j < vertex->VinNeighbors[idx].size(); ++ j)
+				{
+					//cout << "(" << vertex->VinNeighbors[idx][j].v << " " << vertex->Vin[idx] << " " << vertex->VinNeighbors[idx][j].w << ")"<< endl;
+					sprintf(buf, "%d %d %d\n", vertex->VinNeighbors[idx][j].v, vertex->Vin[idx], vertex->VinNeighbors[idx][j].w);
+					writer.write(buf);
+				}
+			}
+		}
+		//reachability
+		if (task.query[0] == REACHABILITY_QUERY_TOPCHAIN || task.query[0] == REACHABILITY_QUERY)
+		{
+			if (vertex->qvalue()[0] < 0) 
+			{
+				sprintf(buf, "1\n");
+				writer.write(buf);
+			}
+		}
+		if (task.query[0] ==  EARLIEST_QUERY_TOPCHAIN)
+		{
+			if (vertex->qvalue()[0] < 0) 
+			{
+				sprintf(buf, "%d\n", -vertex->qvalue()[0]);
+				writer.write(buf);
+			}
+		}
 		
 		if (task.query[0] == TEST)
 		{
@@ -2899,6 +2966,12 @@ public:
 			*/
 		}
 	}
+	
+	virtual void global_compute()
+	{
+		call_operator("1 0");
+		call_operator("1 2");
+	}
 };
 
 class pathCombiner : public Combiner<vector<int> > {
@@ -2908,7 +2981,6 @@ public:
         if (old[0] > new_msg[0]) old = new_msg;
     }
 };
-
 int main(int argc, char* argv[])
 {
 	in_path = argv[1];

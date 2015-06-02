@@ -197,19 +197,16 @@ class WorkerOL {
 					//process this query
 					task.start_another_superstep();
 					
-					/*
-					if (task.query[0] == REACHABILITY_QUERY_TOPCHAIN || task.query[0] == EARLIEST_QUERY_TOPCHAIN) {
-						if (task.dst_info[0] == -1){task.superstep = -1; cout << "here" << endl;  continue;}
-					}
-					*/
-					
 					//- aggregator init (must call init() after superstep is increased)
+					
 					AggregatorT* aggregator;
-					if(use_agg)
+					if(use_agg && task.query[0] == TOPKNEIGHBORS_EARLIEST || task.query[0] == TOPKNEIGHBORS_FASTEST
+					 || task.query[0] == TOPKNEIGHBORS_SHORTEST || task.query[0] == TOPKNEIGHBORS_LATEST)
 					{
 						aggregator = get_aggregator();
-						aggregator->init();
+						aggregator->init(task.query[2]);
 					}
+					
 					hash_set<int> active_set;
 					task.move_active_vertices_to(active_set);
 					for(hash_set<int>::iterator it=active_set.begin(); it!=active_set.end(); it++)
@@ -217,20 +214,62 @@ class WorkerOL {
 						int pos=*it;
 						VertexOLT* v=vertexes[pos];
 						v->vertex_compute();
-						if(use_agg) aggregator->stepPartial(v);
+						//if(use_agg && task.query[0] == TOPKNEIGHBORS) aggregator->stepPartial(v);
 						if(v->is_active()) task.activate(pos);
 					}
+					//agg
+					if(use_agg && 
+						task.query[0] == TOPKNEIGHBORS_EARLIEST || task.query[0] == TOPKNEIGHBORS_FASTEST
+					 || task.query[0] == TOPKNEIGHBORS_SHORTEST || task.query[0] == TOPKNEIGHBORS_LATEST)
+					{
+						for(hash_set<int>::iterator it=task.created.begin(); it!=task.created.end(); it++)
+						{
+							aggregator->stepPartial(vertexes[*it]);
+						}
+					}
+					
 					if (task.superstep == 1 || task.restart == 1)
 					{
 						task.roundNum ++;
 						task.restart = 0;
 					}
 					
+					
+					//aggregating
+					if(use_agg && 
+						task.query[0] == TOPKNEIGHBORS_EARLIEST || task.query[0] == TOPKNEIGHBORS_FASTEST
+					 || task.query[0] == TOPKNEIGHBORS_SHORTEST || task.query[0] == TOPKNEIGHBORS_LATEST)
+					{
+						FinalT* agg = get_agg();
+						if (_my_rank != MASTER_RANK) { //send partialT to aggregator
+							//gathering PartialT
+							PartialT* part = aggregator->finishPartial();
+							slaveGather(*part);
+							//scattering FinalT
+							slaveBcast(*agg);
+						} else {
+							//gathering PartialT
+							vector<PartialT*> parts(_num_workers);
+							masterGather(parts);
+							for (int i = 0; i < _num_workers; i++) {
+								if (i != MASTER_RANK) {
+									PartialT* part = parts[i];
+									aggregator->stepFinal(part);
+									delete part;
+								}
+							}
+							//scattering FinalT
+							FinalT* final = aggregator->finishFinal();
+							*agg = *final;//deep copy
+							masterBcast(*agg);
+						}
+					}
 					//------
 					++qit;
-					
+					/*
 					task.check_termination();
 					if (task.superstep == -1) return -1;
+					*/
 				}
 				else//dump
 				{
@@ -297,6 +336,7 @@ class WorkerOL {
 								for (int j = 0; j < task.dst_info[2*labelSize+1]; ++ j) 
 								{task.dst_info[j*2+2*labelSize+2] = (v->LoutIn)[idx][j].first;task.dst_info[j*2+2*labelSize+3] = (v->LoutIn)[idx][j].second;}
 								task.dst_info[labelSize*4+2] = (v->topologicalLevelIn)[idx];
+								task.dst_info[labelSize*4+3] = v->Vin[idx];
 							}
 							else //stop
 							{
@@ -316,6 +356,8 @@ class WorkerOL {
 									task.dst_info[0] = -v->Vin[task.ans];
 									cout << "(" << queryContainer[1] << "," << queryContainer[2] << ") earliest arrival time is " << -task.dst_info[0] << endl; 
 									cout << "Number of Rounds: " << task.roundNum << endl;
+									
+									v->qvalue()[0] = task.dst_info[0]; //can visit label
 								}
 							}
 							
@@ -338,6 +380,7 @@ class WorkerOL {
 							task.dst_Lout.resize(task.dst_info[labelSize*2+1]);
 							for (int j = 0; j < task.dst_info[labelSize*2+1]; ++j) task.dst_Lout[j] = (make_pair(task.dst_info[j*2+2*labelSize+2], task.dst_info[j*2+2*labelSize+3]));
 							task.dst_topologicalLevel = task.dst_info[labelSize*4+2];
+							task.dst_timeLabel = task.dst_info[labelSize*4+3];
 							
 							//superstep??
 							task.active.clear();
@@ -357,6 +400,7 @@ class WorkerOL {
 					/*
 						fastest query
 					*/
+					/*
 					if (task.query[0] == FASTEST_QUERY_TOPCHAIN)
 					{
 						//cout << "cp1" << endl;
@@ -364,12 +408,7 @@ class WorkerOL {
 						int stop = 0;
 						if (_my_rank == task.dstWorker)
 						{
-							/*
-							cout << task.l << " " << task.r << endl;
-							cout << task.m << endl;
-							cout << task.ans << endl;
-							cout << "superstep " << task.maxSuperstep << endl;
-							*/
+							
 							
 							if (task.visit)
 							{
@@ -576,13 +615,18 @@ class WorkerOL {
 							
 						}
 					}
-							
+					*/		
 					
 					//dump query result
 					strcpy(outpath, output_folder);
 					sprintf(qfile, "/query%d", qit->first);
 					strcat(outpath, qfile);
+					
+					
+					
 					dump_partition_and_free_states(outpath);
+					
+					
 					int accessed=all_sum(task.created.size());//--------------------------------------------
 					if(_my_rank==MASTER_RANK)
 					{
@@ -597,18 +641,24 @@ class WorkerOL {
 						sprintf(outpath, "%d %lf %lf %d", qit->first, time, rate, task.maxSuperstep);
 						notifier->send_msg(type, outpath);
 					}
+					
+					
 					//free the query task
-					if(use_agg)
+					if(use_agg && 
+						task.query[0] == TOPKNEIGHBORS_EARLIEST || task.query[0] == TOPKNEIGHBORS_FASTEST
+					 || task.query[0] == TOPKNEIGHBORS_SHORTEST || task.query[0] == TOPKNEIGHBORS_LATEST)
 					{
 						delete (AggregatorT*)task.aggregator;
 						delete (FinalT*)task.agg;
 					}
+					
 					queries.erase(qit++);
 				}
 				
 			}
 			//-----------------------------------
 			//aggregating
+			/*
 			if(use_agg)
 			{
 				for(qit = queries.begin(); qit != queries.end(); qit++)
@@ -644,6 +694,7 @@ class WorkerOL {
 					}
 				}
 			}
+			*/
 			//cout << _my_rank << " compute completed." << endl;
 			return 0;
 		}
@@ -678,6 +729,8 @@ class WorkerOL {
 		}
 
 		//system call
+		virtual void task_init() = 0;
+		/*
 		void task_init()
 		{
 			//init(vertexes);
@@ -689,7 +742,12 @@ class WorkerOL {
 			if (queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY 
 			|| queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
 			|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
-			|| queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == LATEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY)
+			|| queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == LATEST_QUERY || queryContainer[0] == FASTEST_QUERY || queryContainer[0] == SHORTEST_QUERY
+			|| queryContainer[0] == TOPKNEIGHBORS_EARLIEST || queryContainer[0] == TOPKNEIGHBORS_FASTEST
+			|| queryContainer[0] == TOPKNEIGHBORS_SHORTEST || queryContainer[0] == TOPKNEIGHBORS_LATEST
+			|| queryContainer[0] == KHOP_EARLIEST || queryContainer[0] == KHOP_FASTEST
+			|| queryContainer[0] == KHOP_SHORTEST || queryContainer[0] == KHOP_LATEST
+			)
 			{
 				//get neighbors: 1/2, v, (t1,t2)
 				//reachability: 3/4, src, dst, (t1, t2)
@@ -697,7 +755,10 @@ class WorkerOL {
 				int pos = get_vpos(src);
 				if (pos != -1) activate(pos);
 			}
-			if (queryContainer[0] == ADDEDGE)
+			if (queryContainer[0] == ADDEDGE
+			|| queryContainer[0] == INTERSECT
+			|| queryContainer[0] == MIDDLE
+			)
 			{
 				int src = queryContainer[1];
 				int dst = queryContainer[2];
@@ -717,11 +778,15 @@ class WorkerOL {
 			//useCombiner
 			if (queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN 
 			|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN || queryContainer[0] == FASTEST_QUERY_TOPCHAIN
-			|| queryContainer[0] == EARLIEST_QUERY /*|| queryContainer[0] == FASTEST_QUERY*/ /*|| queryContainer[0] == SHORTEST_QUERY*/ || queryContainer[0] == LATEST_QUERY) {
+			|| queryContainer[0] == EARLIEST_QUERY  || queryContainer[0] == LATEST_QUERY
+			|| queryContainer[0] == TOPKNEIGHBORS_EARLIEST || queryContainer[0] == TOPKNEIGHBORS_LATEST
+			|| queryContainer[0] == KHOP_EARLIEST || queryContainer[0] == KHOP_LATEST) 
+			{
 				TaskT& task=*(TaskT*)query_entry();
 				task.useCombiner = 1;
 			}
 		}
+		*/
 
 		//------
 
@@ -731,18 +796,49 @@ class WorkerOL {
 		//system call
 		void dump_partition_and_free_states(char * outpath)
 		{
-			hdfsFS fs = getHdfsFS();
-			BufferedWriter* writer = new BufferedWriter(outpath, fs, _my_rank);
+			QueryT& queryContainer = *get_query();
+			
+			if (
+				//path query
+				queryContainer[0] == EARLIEST_QUERY || queryContainer[0] == LATEST_QUERY || 
+				queryContainer[0] == FASTEST_QUERY  || queryContainer[0] == SHORTEST_QUERY || 
+				//middle
+				queryContainer[0] == MIDDLE || queryContainer[0] == INTERSECT
+				//topk khop
+				|| queryContainer[0] == TOPKNEIGHBORS_EARLIEST || queryContainer[0] == TOPKNEIGHBORS_FASTEST 
+				|| queryContainer[0] == TOPKNEIGHBORS_SHORTEST || queryContainer[0] == TOPKNEIGHBORS_LATEST
+				
+				|| queryContainer[0] == KHOP_EARLIEST || queryContainer[0] == KHOP_FASTEST 
+				|| queryContainer[0] == KHOP_SHORTEST || queryContainer[0] == KHOP_LATEST
+				//neighbors
+				|| queryContainer[0] == OUT_NEIGHBORS_QUERY || queryContainer[0] == IN_NEIGHBORS_QUERY
+				//reachability
+				|| queryContainer[0] == REACHABILITY_QUERY || queryContainer[0] == REACHABILITY_QUERY_TOPCHAIN
+				|| queryContainer[0] == EARLIEST_QUERY_TOPCHAIN
+			 	|| queryContainer[0] == TEST)
+			{
+			
+				hdfsFS fs = getHdfsFS();
+				BufferedWriter* writer = new BufferedWriter(outpath, fs, _my_rank);
 
-			TaskT& task=*(TaskT*)query_entry();
-			for (hash_set<int>::iterator it = task.created.begin(); it != task.created.end(); it++) {
-				VertexOLT* v = vertexes[*it];
-				writer->check();
-				dump(v, *writer);
-				v->free();
+				TaskT& task=*(TaskT*)query_entry();
+				for (hash_set<int>::iterator it = task.created.begin(); it != task.created.end(); it++) {
+					VertexOLT* v = vertexes[*it];
+					writer->check();
+					dump(v, *writer);
+					v->free();
+				}
+				delete writer;
+				hdfsDisconnect(fs);
 			}
-			delete writer;
-			hdfsDisconnect(fs);
+			else
+			{
+				TaskT& task=*(TaskT*)query_entry();
+				for (hash_set<int>::iterator it = task.created.begin(); it != task.created.end(); it++) {
+					VertexOLT* v = vertexes[*it];
+					v->free();
+				}
+			}
 		}
 
 		//------
@@ -831,6 +927,8 @@ class WorkerOL {
 
 		bool update_tasks()//return false to shut_down server
 		{
+			if (queries.size() > 0) return 1;
+			
 			vector<qinfo> new_queries;
 			if (_my_rank == MASTER_RANK)
 			{
@@ -932,7 +1030,7 @@ class WorkerOL {
 					}while(server->recv_msg(type));
 				}
 				masterBcast(new_queries);
-				
+
 				//broadcast dst's label
 				bcastLabel(new_queries);
 			}
@@ -1018,9 +1116,9 @@ class WorkerOL {
 							task.l = idx0;
 							task.r = idx;
 							task.m = (task.l+task.r)/2;
-							//cout << "l r: " << task.l << " " << task.r << endl; 
 							if (queryContainer[0] == EARLIEST_QUERY_TOPCHAIN
 							|| queryContainer[0] == FASTEST_QUERY_TOPCHAIN) idx = (idx+idx0)/2;
+							//cout << "l r: " << task.l << " " << task.r << endl; 
 							//cout << "idx: " << idx << endl;
 							task.dst_info[0] = (v->LinIn)[idx].size();
 							for (int j = 0; j < task.dst_info[0]; ++ j) 
@@ -1032,6 +1130,10 @@ class WorkerOL {
 							task.dst_info[labelSize*4+2] = (v->topologicalLevelIn)[idx];
 							
 							task.dst_info[labelSize*4+3] = v->Vin[idx]; //time label
+							/*
+							for (int j = 0; j < labelSize*4+4; ++ j) cout << task.dst_info[j] << " ";
+							cout << endl;
+							*/
 						}
 						else 
 						{
@@ -1107,6 +1209,7 @@ class WorkerOL {
 				
 				
 				//get srcWorker for fastest query
+				/*
 				if (info.q[0] == FASTEST_QUERY_TOPCHAIN) {
 					int srcWorker;
 					QueryT& queryContainer = *get_query();
@@ -1165,6 +1268,7 @@ class WorkerOL {
 					}
 					task.srcWorker = srcWorker;
 				}
+				*/
 			}
 			//cout << _my_rank << " bcast done" << endl;
 		}
@@ -1239,12 +1343,27 @@ class WorkerOL {
 			{
 				//if (_my_rank==MASTER_RANK) cout << "phaseNum: " << i << endl;
 				preCompute(i);
+				
+				//no index
+				//break;
 			}
 			//sleep(100000);
 			
+			
+			//global_compute();
+			int taskCounter = 0;
 			init_timers();
-			while(update_tasks())
+			while(1)
 			{
+			
+				if (taskCounter < task_list.size()) getNextTask(taskCounter);
+				else 
+				{
+					bool tmp = update_tasks();
+					if (!tmp) break;
+				}
+				
+				
 				ResetTimer(WORKER_TIMER);
 				ResetTimer(4);
 				int ret = compute_dump();
@@ -1258,6 +1377,7 @@ class WorkerOL {
 				//in sync_messages(), master sends to other workers, and it should be before update_tasks(), where master also sends to other workers
 				//--------------------------------
 				StopTimer(WORKER_TIMER);
+				
 				if (_my_rank == MASTER_RANK){
 					cout<<"---------------------------------------"<<endl;
 					cout<<"Global clock tick #: "<<glob_step<<endl;
@@ -1298,6 +1418,12 @@ class WorkerOL {
 					task.start_another_superstep();
 					hash_set<int> active_set;
 					task.move_active_vertices_to(active_set);
+					/*
+					int i = 0;
+					int total = active_set.size();
+					int interval = total/100;
+					int cur = 0;
+					*/
 					for(hash_set<int>::iterator it=active_set.begin(); it!=active_set.end(); it++)
 					{
 						int pos=*it;
@@ -1305,6 +1431,14 @@ class WorkerOL {
 						v->vertex_pre_compute(phaseNum);
 						
 						//if(v->is_active()) task.activate(pos);
+						/*
+						i ++;
+						if (_my_rank == 0 && phaseNum == 3 && i >= cur)
+						{
+							cur += interval;
+							cout << cur/interval << endl;
+						}
+						*/
 					}
 					
 					//all the vertexes should be active in phase1 superstep1
@@ -1330,6 +1464,10 @@ class WorkerOL {
 					queries.erase(qit++);
 					break;
 				}
+				//test
+				//worker_barrier();
+				//if (_my_rank == 0) cout << "done! waiting for messages" << endl;
+				
 				//message_buffer->combine();
 				message_buffer->sync_messages();
 				//--------------------------------
@@ -1338,7 +1476,57 @@ class WorkerOL {
 			//sleep(10000000);
 		}
 		
+		vector<string> task_list;
+		virtual void global_compute() = 0;
+		void call_operator(string s)
+		{
+			task_list.push_back(s);
+		}
 		
+		
+		void getNextTask(int& taskCounter)
+		{
+			if (queries.size() > 0) return;
+			char *msg = new char[task_list[taskCounter].length()+1];
+			strcpy(msg, task_list[taskCounter].c_str());
+			
+			if (_my_rank == MASTER_RANK) cout<<"Q"<<nxt_qid<<": "<<msg<<endl;
+			
+			vector<qinfo> new_queries;
+			
+			QueryT q=toQuery(msg);
+			qinfo qentry(nxt_qid, q);
+			new_queries.push_back(qentry);
+			TaskT& task=queries[nxt_qid]=TaskT(q);
+			if(use_agg)
+			{
+				task.aggregator=new AggregatorT;
+				task.agg=new FinalT;
+			}
+			//create empty output_folder {
+			if (_my_rank == MASTER_RANK) 
+			{
+				strcpy(outpath, output_folder);
+				sprintf(qfile, "/query%d", nxt_qid);
+				strcat(outpath, qfile);
+				dirCreate(outpath);
+			}
+			//} create empty output_folder
+			//set query environment
+			set_qid(nxt_qid);
+			set_query_entry(&task);
+			//init active vertices
+			task_init();
+			//----
+			nxt_qid++;
+			
+			
+			bcastLabel(new_queries);
+			
+
+			taskCounter++;
+			delete [] msg;
+		}
 
 		// run the worker
 		/*

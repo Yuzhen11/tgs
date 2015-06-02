@@ -1,0 +1,23 @@
+#include "TemporalOperator.h"
+using namespace std;
+
+int main()
+{
+    TemporalOperator op("/yuzhen/output");
+    string s1 = op.out_nb(0);
+    //op.out_nb(1,1,5);
+    //op.server_exit();
+    cout << s1 << endl;
+    resultVector res = op.loadResult(s1);
+    printresult(res);
+    
+    string s2 = op.out_nb(1,1,5);
+    resultVector res2 = op.loadResult(s2);
+    printresult(res2);
+    
+    
+    //exit
+    //op.server_exit();
+
+    return 0;
+}
